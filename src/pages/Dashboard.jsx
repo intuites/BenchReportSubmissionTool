@@ -7,6 +7,7 @@ import Segmented from '../components/Segmented'
 import DateField from '../components/DateField'
 import { Count } from '../stageshow/kit/motion/Count'
 import { SkeletonLine, SkeletonRows } from '../components/Loading'
+import '../styles/dashboard-glass.css'
 
 const PERIODS = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']]
 const LAST = { day: 'the day before', week: 'last week', month: 'last month' }
@@ -78,7 +79,7 @@ export default function Dashboard() {
   const label = period === 'day' ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`
 
   return (
-    <section className="page">
+    <section className="page dash-glass">
       <PageHead title="Dashboard" subtitle={label}>
         <Segmented label="Report period" items={PERIODS} value={period} onChange={setPeriod} />
         <div className="stepper">
