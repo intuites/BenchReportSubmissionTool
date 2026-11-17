@@ -96,8 +96,9 @@ body {
 h1, h2, h3 { margin: 0; }
 h1 { font: 500 32px/1.1 var(--font-display); letter-spacing: -0.03em; text-wrap: balance; }
 h2 { font: 500 17px/1.3 var(--font-display); letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
-a { color: var(--link); text-decoration: none; text-underline-offset: 3px; }
-a:hover { text-decoration: underline; }
+/* links never underline on hover: they deepen toward the ink instead */
+a { color: var(--link); text-decoration: none; transition: color var(--m-out) var(--m-ease); }
+a:not([class]):hover { color: color-mix(in oklab, var(--link) 72%, var(--ink)); transition-duration: var(--m-in); }
 code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunken); padding: 1px 6px; border-radius: 6px; }
 .mono { font-variant-numeric: tabular-nums; }
 ::selection { background: color-mix(in srgb, var(--accent-mark) 22%, transparent); }
@@ -504,9 +505,14 @@ input[type='date']:hover::-webkit-calendar-picker-indicator, input[type='date']:
 .profile-meta > * { display: inline-flex; align-items: center; gap: 6px; }
 .profile-meta a { color: var(--ink-2); }
 .row-link { color: inherit; display: inline-flex; flex-direction: column; }
-.row-link:hover { text-decoration: none; }
-.row-link:hover strong { text-decoration: underline; text-underline-offset: 3px; }
-.row-link .sub { color: var(--link); }
+.row-link:hover { color: inherit; }
+/* hover: the name takes the accent and a small arrow slides in after it */
+.row-link strong { display: inline-flex; align-items: center; gap: 4px; transition: color var(--m-out) var(--m-ease); }
+.row-link strong::after { content: '→'; font-weight: 400; opacity: 0; transform: translateX(-4px); transition: opacity var(--m-out) var(--m-ease), transform var(--m-out) var(--m-ease); }
+.row-link:hover strong, .row-link:focus-visible strong { color: var(--link); transition-duration: var(--m-in); }
+.row-link:hover strong::after, .row-link:focus-visible strong::after { opacity: 1; transform: none; transition-duration: var(--m-in); }
+.row-link .sub { color: var(--link); transition: color var(--m-out) var(--m-ease); }
+.row-link:hover .sub { color: var(--ink-2); }
 .count.neutral { background: var(--sunken); color: var(--ink-2); }
 .due-list li.inactive { opacity: 0.6; }
 
@@ -627,8 +633,8 @@ input[type='date']:hover::-webkit-calendar-picker-indicator, input[type='date']:
 .check { display: inline-flex; align-items: center; gap: 10px; min-height: 40px; color: var(--ink); font-weight: 500; cursor: pointer; }
 .check input { width: 18px; height: 18px; }
 .check.big { font-size: 15px; }
-.link { padding: 0; border: 0; background: none; color: var(--link); font: inherit; font-weight: 500; cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: text-decoration-color var(--m-out) var(--m-ease); }
-.link:hover { text-decoration-color: currentColor; }
+.link { padding: 0; border: 0; background: none; color: var(--link); font: inherit; font-weight: 500; cursor: pointer; text-decoration: none; transition: color var(--m-out) var(--m-ease); }
+.link:hover { color: color-mix(in oklab, var(--link) 72%, var(--ink)); transition-duration: var(--m-in); }
 
 /* =====================================================================
    Follow-ups, team access

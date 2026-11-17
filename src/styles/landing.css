@@ -263,8 +263,8 @@
 .l-who { min-width: 0; }
 .l-acts, .l-done { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .l-done { animation: l-up 360ms var(--m-ease-enter) both; }
-.l-textbtn { min-height: 44px; padding: 0 8px; border: 0; background: none; color: var(--ink-2); font: 500 14px var(--font-body); cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 4px; transition: text-decoration-color var(--m-out) var(--m-ease), color var(--m-out) var(--m-ease); }
-.l-textbtn:hover { color: var(--ink); text-decoration-color: currentColor; transition-duration: var(--m-in); }
+.l-textbtn { min-height: 44px; padding: 0 8px; border: 0; background: none; color: var(--ink-2); font: 500 14px var(--font-body); cursor: pointer; text-decoration: none; transition: color var(--m-out) var(--m-ease); }
+.l-textbtn:hover { color: var(--ink); transition-duration: var(--m-in); }
 .l-roles { margin-top: 40px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; }
 .l-roles > div { grid-column: span 6; }
 .l-roles > div + div { grid-column: 7 / span 6; }
