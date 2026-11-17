@@ -75,7 +75,7 @@ export const TOURS = {
       id: 'profile',
       target: PROFILE,
       title: 'Take the tour again any time from here',
-      body: 'Your profile menu holds this tour, the theme and sign out. On a phone it sits under More.',
+      body: 'Your profile menu holds Appearance, this tour, the theme and sign out. On a phone they sit under More.',
     },
   ],
 
@@ -145,7 +145,7 @@ export const TOURS = {
       id: 'profile',
       target: PROFILE,
       title: 'Take the tour again any time from here',
-      body: 'Your profile menu holds this tour, the theme and sign out. On a phone it sits under More.',
+      body: 'Your profile menu holds Appearance, this tour, the theme and sign out. On a phone they sit under More.',
     },
   ],
 }
@@ -175,11 +175,4 @@ export function place(box, card, vw, vh) {
   // nothing fits beside it: the card sits at the screen edge away from the box's middle
   const low = (top + bottom) / 2 < vh / 2
   return { side: 'over', x: clampX((vw - card.w) / 2), y: low ? vh - card.h - EDGE : EDGE }
-}
-
-// A rounded rectangle as path commands; always the same commands, so clip-paths glide between them
-export function roundRect(x, y, w, h, r) {
-  r = Math.max(0, Math.min(r, w / 2, h / 2))
-  const n = (v) => Math.round(v * 10) / 10
-  return `M${n(x + r)} ${n(y)}H${n(x + w - r)}A${n(r)} ${n(r)} 0 0 1 ${n(x + w)} ${n(y + r)}V${n(y + h - r)}A${n(r)} ${n(r)} 0 0 1 ${n(x + w - r)} ${n(y + h)}H${n(x + r)}A${n(r)} ${n(r)} 0 0 1 ${n(x)} ${n(y + h - r)}V${n(y + r)}A${n(r)} ${n(r)} 0 0 1 ${n(x + r)} ${n(y)}Z`
 }

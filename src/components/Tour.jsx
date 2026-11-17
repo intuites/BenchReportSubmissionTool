@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { TOURS, place, roundRect } from '../lib/tours'
+import { TOURS, place } from '../lib/tours'
+import { useGlass } from '../lib/glass'
 import '../styles/tour.css'
 
 // The guided tour: <Tour role="admin" | "recruiter" open={bool} onClose={() => {}} />
-// Dims the page with a rounded cut-out round each step's target and puts a card beside it.
+// A liquid lens (the spotlight) dims the page round each step's target and glides from one to the next,
+// its leading edges first; a glass card sits beside it.
 // Steps are data in src/lib/tours.js. The page underneath is inert while the tour runs.
 
 const PAD = 8 // spotlight round the target
 const WAIT = 3000 // how long a step waits for its target
 const RING = 2
+const GLIDE = 560 // ms the lens and card take between steps (tour.css)
 
 const isVisible = (el) => {
   const r = el.getBoundingClientRect()
@@ -24,13 +27,13 @@ const find = (target) => {
   }
   return null
 }
-// Polls until fn returns something, or gives up with null
+// Checks every frame until fn returns something, or gives up with null
 const until = (fn, ms, alive) => new Promise((done) => {
-  const end = Date.now() + ms
+  const end = performance.now() + ms
   const tick = () => {
     const v = alive() ? fn() : null
-    if (v || !alive() || Date.now() > end) return done(v || null)
-    setTimeout(tick, 100)
+    if (v || !alive() || performance.now() > end) return done(v || null)
+    requestAnimationFrame(tick)
   }
   tick()
 })
@@ -42,9 +45,9 @@ export default function Tour({ role, open, onClose }) {
   const [shown, setShown] = useState(-1) // the step on screen once its target is found
   const [closing, setClosing] = useState(false)
   const rootRef = useRef(null)
-  const dimRef = useRef(null)
-  const ringRef = useRef(null)
+  const spotRef = useRef(null)
   const cardRef = useRef(null)
+  const paneRef = useRef(null)
   const nextRef = useRef(null)
   const target = useRef(null)
   const glideUntil = useRef(0)
@@ -63,7 +66,9 @@ export default function Tour({ role, open, onClose }) {
     lastBox.current = null
     const app = document.getElementById('root')
     if (app) app.inert = true
+    document.documentElement.dataset.touring = '' // App skips its page cross-fade meanwhile
     return () => {
+      delete document.documentElement.dataset.touring
       // reset now, so a reopen never runs the step effect with the old step
       setWant(0); setShown(-1)
       if (app) app.inert = false
@@ -100,21 +105,27 @@ export default function Tour({ role, open, onClose }) {
       }
       target.current = el
       pending.current = false
-      if (placed.current) glideUntil.current = performance.now() + 320
+      if (placed.current) glideUntil.current = performance.now() + GLIDE
       setShown(want)
     })()
     return () => { live = false }
   }, [open, want, steps])
 
-  // Follow the target every frame (scroll, resize, data arriving), writing styles directly
+  // Follow the target every frame (scroll, resize, data arriving), writing styles directly.
+  // Between steps the lens glides (CSS transitions on its four edges); otherwise it follows at once.
   useEffect(() => {
     if (!open) return
     let raf = 0
     let last = ''
+    let gliding = false
+    let prev = null
+    const radius = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--radius')) || 12) + 4
     const tick = () => {
       raf = requestAnimationFrame(tick)
-      const card = cardRef.current
-      if (!card || !dimRef.current) return
+      const card = cardRef.current, spot = spotRef.current
+      if (!card || !spot) return
+      const glide = performance.now() < glideUntil.current
+      if (glide !== gliding) { gliding = glide; rootRef.current.toggleAttribute('data-glide', glide) }
       const vw = document.documentElement.clientWidth
       const vh = document.documentElement.clientHeight
       const el = target.current
@@ -126,21 +137,26 @@ export default function Tour({ role, open, onClose }) {
         box = { x, y, w: Math.min(r.right + PAD, vw - RING) - x, h: Math.min(r.bottom + PAD, vh - RING) - y }
         if (box.w <= 0 || box.h <= 0) box = null // scrolled right off the screen: the card centres until it is back
       }
-      // the old page unmounted while the next step waits: hold the spotlight where it was, then glide
+      // the old page unmounted while the next step waits: hold the lens where it was, then glide
       if (pending.current) box = box || lastBox.current
       else lastBox.current = box
       const size = { w: card.offsetWidth, h: card.offsetHeight }
       const key = [box ? [box.x, box.y, box.w, box.h].map(Math.round) : 'none', size.w, size.h, vw, vh].join()
       if (key === last) return
       last = key
-      rootRef.current.toggleAttribute('data-glide', performance.now() < glideUntil.current)
-      const radius = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--radius')) || 12) + 4
+      // no target: the lens shrinks to a point in the middle and its ring fades
       const b = box || { x: vw / 2, y: vh / 2, w: 0, h: 0 }
-      const r = box ? radius : 0
-      const screen = roundRect(-1, -1, vw + 2, vh + 2, 0)
-      dimRef.current.style.clipPath = `path(evenodd, '${screen}${roundRect(b.x, b.y, b.w, b.h, r)}')`
-      const o = box ? RING : 0
-      ringRef.current.style.clipPath = `path(evenodd, '${roundRect(b.x - o, b.y - o, b.w + o * 2, b.h + o * 2, r + o)}${roundRect(b.x, b.y, b.w, b.h, r)}')`
+      if (prev && glide) {
+        // the edge it moves toward leads, the other trails (as in Liquid.jsx)
+        if (b.y !== prev.y) spot.dataset.y = b.y > prev.y ? 'down' : 'up'
+        if (b.x !== prev.x) spot.dataset.x = b.x > prev.x ? 'right' : 'left'
+      }
+      prev = b
+      const st = spot.style
+      st.top = `${b.y}px`; st.left = `${b.x}px`
+      st.right = `${vw - b.x - b.w}px`; st.bottom = `${vh - b.y - b.h}px`
+      st.borderRadius = `${box ? radius : 0}px`
+      spot.toggleAttribute('data-empty', !box)
       const p = place(box, size, vw, vh)
       card.style.transform = `translate3d(${Math.round(p.x)}px, ${Math.round(p.y)}px, 0)`
       card.dataset.side = p.side
@@ -149,6 +165,14 @@ export default function Tour({ role, open, onClose }) {
     tick()
     return () => cancelAnimationFrame(raf)
   }, [open])
+
+  // Each new step, the glass gives a small liquid wobble as its words change
+  useGlass(paneRef, open && shown >= 0)
+  useEffect(() => {
+    const pane = paneRef.current
+    if (!open || shown < 0 || !pane || !placed.current || document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    pane.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.97, 0.955)', offset: 0.3 }, { transform: 'scale(1.012, 1.016)', offset: 0.62 }, { transform: 'scale(1)' }], { duration: GLIDE, easing: 'ease-out' })
+  }, [open, shown])
 
   const finish = () => {
     if (closing) return
@@ -199,8 +223,7 @@ export default function Tour({ role, open, onClose }) {
     <div className="tour" ref={rootRef} data-closing={closing || undefined}>
       {/* clicks on the dimmed page, and on the spotlit element, do nothing */}
       <div className="tour-shield" onMouseDown={(e) => e.preventDefault()} />
-      <div className="tour-dim" ref={dimRef} aria-hidden />
-      <div className="tour-ring" ref={ringRef} aria-hidden />
+      <div className="tour-spot" ref={spotRef} data-y="down" data-x="right" data-empty aria-hidden />
       <div
         className="tour-card"
         ref={cardRef}
@@ -210,6 +233,7 @@ export default function Tour({ role, open, onClose }) {
         aria-describedby={step ? 'tour-body' : undefined}
         data-ready={step ? true : undefined}
       >
+        <div className="glass tour-pane" ref={paneRef}>
         {step && (
           <div className="tour-inner" key={shown}>
             <div className="tour-top">
@@ -229,6 +253,7 @@ export default function Tour({ role, open, onClose }) {
             </div>
           </div>
         )}
+        </div>
         {/* inside the modal so screen readers that honour aria-modal still speak it */}
         <p className="tour-live" aria-live="polite">{step ? `${label}, step ${shown + 1} of ${steps.length}: ${step.title}` : ''}</p>
       </div>

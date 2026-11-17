@@ -1,8 +1,12 @@
 /* The guided tour (src/components/Tour.jsx). App tokens only.
-   Three fixed layers over the page: a shield that eats clicks, the dim with a
-   rounded cut-out, a 2px accent ring round the cut-out; then the card. */
+   A shield that eats clicks; the lens, a rounded hole whose huge shadow is the dim, with an accent
+   ring and a glass sheen; then the glass card. Between steps the lens flows like the Liquid
+   highlight in menus: the edge moving toward the next target leads and springs past a little,
+   the other trails. Only the lens's four edges and the card's transform move. */
 .tour {
   --tour-dim: color-mix(in srgb, var(--ink) 46%, transparent);
+  --lq: cubic-bezier(0.34, 1.28, 0.5, 1);
+  --lead: 380ms; --trail: 560ms; /* GLIDE in Tour.jsx is the longer one */
   position: fixed; inset: 0; z-index: 100;
   animation: tour-fade var(--m-panel) var(--m-ease) both;
 }
@@ -10,25 +14,43 @@
 .tour[data-closing] { animation: tour-out var(--m-out) var(--m-ease) both; }
 
 .tour-shield { position: absolute; inset: 0; }
-.tour-dim, .tour-ring { position: absolute; inset: 0; pointer-events: none; }
-.tour-dim { background: var(--tour-dim); }
-.tour-ring { background: var(--accent-mark); }
-/* the spotlight glides only between steps; following a scroll is immediate */
-.tour[data-glide] :is(.tour-dim, .tour-ring) { transition: clip-path var(--m-slide) var(--m-ease-io); }
+.tour-spot {
+  position: absolute; pointer-events: none;
+  box-shadow: 0 0 0 150vmax var(--tour-dim);
+  --t-top: var(--lead); --t-bottom: var(--lead); --t-left: var(--lead); --t-right: var(--lead);
+}
+/* the ring, a soft accent glow and light caught on the top rim, so the hole reads as a lens */
+.tour-spot::after {
+  content: ''; position: absolute; inset: -2px; border-radius: inherit;
+  border: 2px solid var(--accent-mark);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent-mark) 18%, transparent), 0 0 28px -4px color-mix(in srgb, var(--accent-mark) 55%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.55);
+  transition: opacity var(--m-in) var(--m-ease);
+}
+.tour-spot[data-empty]::after { opacity: 0; }
+.tour[data-glide] .tour-spot {
+  transition: top var(--t-top) var(--lq), bottom var(--t-bottom) var(--lq), left var(--t-left) var(--lq), right var(--t-right) var(--lq), border-radius var(--lead) var(--m-ease);
+}
+.tour-spot[data-y='down'] { --t-top: var(--trail); }
+.tour-spot[data-y='up'] { --t-bottom: var(--trail); }
+.tour-spot[data-x='right'] { --t-left: var(--trail); }
+.tour-spot[data-x='left'] { --t-right: var(--trail); }
 
 .tour-card {
   position: absolute; top: 0; left: 0;
   width: min(360px, calc(100vw - 32px));
-  padding: 16px 20px 20px;
-  background: var(--surface); color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: calc(var(--radius) + 4px);
-  box-shadow: var(--shadow-pop);
+  color: var(--ink);
   outline: none;
+  will-change: transform;
 }
 .tour-card:not([data-ready]) { visibility: hidden; }
-.tour[data-glide] .tour-card { transition: transform var(--m-slide) var(--m-ease-io); }
-.tour-inner { animation: tour-rise var(--m-panel) var(--m-ease-enter) both; }
+.tour[data-glide] .tour-card { transition: transform var(--trail) var(--lq); }
+/* the glass itself (.glass in styles.css: tint, rim, accent, the refracting lens in Chromium) */
+.tour-pane { position: relative; isolation: isolate; padding: 16px 20px 20px; border-radius: calc(var(--radius) + 4px); transform-origin: 50% 50%; }
+/* denser core than a menu: a paragraph sits on it, so the page under it must not read through */
+.tour .tour-pane::before { border-radius: calc(var(--radius) - 3px); background: color-mix(in srgb, var(--surface) 72%, var(--glass-tint)); }
+/* while it moves the lens would be re-run every frame: plain frost until it lands */
+:root.glass-refract .tour[data-glide] .tour-pane, .tour[data-glide] .tour-pane { -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6); }
+.tour-inner { animation: tour-rise 380ms var(--m-ease-enter) both; }
 
 .tour-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 -8px 8px 0; }
 .tour-count { color: var(--ink-3); font-size: 13px; font-weight: 500; }
@@ -38,30 +60,29 @@
 
 .tour-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 20px; }
 .tour-dots { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.tour-dots li { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background-color var(--m-in) var(--m-ease); }
+.tour-dots li { width: 6px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 18%, transparent); transition: width 420ms var(--lq), background-color var(--m-in) var(--m-ease); }
 .tour-dots li[data-state='done'] { background: var(--ink-3); }
-.tour-dots li[data-state='on'] { background: var(--accent-mark); }
+.tour-dots li[data-state='on'] { width: 18px; background: var(--accent-mark); }
 .tour-actions { display: flex; gap: 8px; }
 
-/* App.jsx cross-fades pages with a View Transition, and its named content group would paint over
-   the tour. The tour gets its own group above it, shown live with no animation. */
-.tour { view-transition-name: bt-tour; }
-::view-transition-old(bt-tour) { display: none; }
-::view-transition-group(bt-tour), ::view-transition-new(bt-tour) { animation: none; }
+/* App.jsx skips its page cross-fade during the tour; the new page just fades in under the lens */
+:root[data-touring] main.content > * { animation: tour-fade 240ms var(--m-ease) both; }
 
 .tour-live { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 @keyframes tour-fade { from { opacity: 0; } }
 @keyframes tour-out { to { opacity: 0; } }
-@keyframes tour-rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes tour-rise { from { opacity: 0; transform: translateY(8px); filter: blur(3px); } }
 
 /* phones: full-width card, roomier buttons */
 @media (max-width: 560px) {
-  .tour-card { padding: 16px; }
+  .tour-pane { padding: 16px; }
   .tour-actions .btn { height: 44px; }
   .tour-skip.btn.small { height: 36px; }
 }
 
 /* reduced motion: everything lands at once and stays visible */
-:root[data-motion='reduced'] .tour, :root[data-motion='reduced'] .tour * { animation: none !important; transition: none !important; }
-@media (prefers-reduced-motion: reduce) { .tour, .tour * { animation: none !important; transition: none !important; } }
+:root[data-motion='reduced'] .tour, :root[data-motion='reduced'] .tour *, :root[data-motion='reduced'] .tour *::after, :root[data-touring][data-motion='reduced'] main.content > * { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .tour, .tour *, .tour *::after, :root[data-touring] main.content > * { animation: none !important; transition: none !important; } }
+/* solid card for reduced transparency and higher contrast comes from .glass; the lens drops its glow */
+:root[data-contrast='high'] .tour-spot::after { box-shadow: none; }

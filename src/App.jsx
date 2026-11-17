@@ -35,7 +35,8 @@ const NAV = [
   { id: 'followups', label: 'Follow-ups', icon: Mail, Page: Settings },
   { id: 'reports', label: 'Reports', icon: FileBarChart, Page: Reports, admin: true },
   { id: 'team', label: 'Team access', icon: ShieldCheck, Page: Team, admin: true },
-  { id: 'appearance', label: 'Appearance', icon: Palette, Page: Appearance, bottom: true },
+  // in the profile menu (and More on a phone), not the sidebar
+  { id: 'appearance', label: 'Appearance', icon: Palette, Page: Appearance, menu: true },
 ]
 
 const PHONE_TABS = ['dashboard', 'submissions', 'interviews', 'candidates']
@@ -109,7 +110,8 @@ export default function App() {
       const next = fromHash()
       const nextParam = paramFromHash()
       const swap = () => flushSync(() => { setPage(next); setParam(nextParam) })
-      if (document.startViewTransition && !reduced) {
+      // no cross-fade while the tour runs: snapshotting the page under it is what made it stutter
+      if (document.startViewTransition && !reduced && !('touring' in document.documentElement.dataset)) {
         // The content area is named only while the change animates
         const root = document.documentElement
         root.dataset.vt = 'page'
@@ -147,8 +149,8 @@ export default function App() {
         <Logo />
         <nav ref={navRef}>
           <Liquid rect={navRect} tone="accent" />
-          {nav.map(({ id, label, icon: Icon, bottom }) => (
-            <a key={id} href={`#${id}`} data-active={page === id} className={`${page === id ? 'active' : ''} ${bottom ? 'nav-bottom' : ''} ${PHONE_TABS.includes(id) ? '' : 'nav-more'}`} aria-current={page === id ? 'page' : undefined} aria-label={id === 'team' && admin.waiting ? `${label}, ${admin.waiting} waiting` : label} title={label}>
+          {nav.filter((n) => !n.menu).map(({ id, label, icon: Icon }) => (
+            <a key={id} href={`#${id}`} data-active={page === id} className={`${page === id ? 'active' : ''} ${PHONE_TABS.includes(id) ? '' : 'nav-more'}`} aria-current={page === id ? 'page' : undefined} aria-label={id === 'team' && admin.waiting ? `${label}, ${admin.waiting} waiting` : label} title={label}>
               <Icon size={18} strokeWidth={1.5} /> <span>{label}</span>{id === "team" && admin.waiting > 0 && <b className="nav-badge" aria-label={`${admin.waiting} waiting`}>{admin.waiting}</b>}
             </a>
           ))}
