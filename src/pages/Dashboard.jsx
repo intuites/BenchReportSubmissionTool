@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { CalendarClock, ChevronLeft, ChevronRight, Plus, Send } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowRight, BadgeCheck, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, Plus, Send, UserX } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { fmtDate, iso, periodRange, shift, today } from '../lib/period'
 import PageHead from '../components/PageHead'
@@ -7,6 +7,7 @@ import Segmented from '../components/Segmented'
 import DateField from '../components/DateField'
 import { Count } from '../stageshow/kit/motion/Count'
 import { SkeletonLine, SkeletonRows } from '../components/Loading'
+import '../styles/dashboard.css'
 
 const PERIODS = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']]
 const LAST = { day: 'the day before', week: 'last week', month: 'last month' }
@@ -30,6 +31,7 @@ export default function Dashboard() {
   const [data, setData] = useState(null)
   const [upcoming, setUpcoming] = useState(null)
   const [error, setError] = useState('')
+  const idleRef = useRef(null)
   const { from, to } = periodRange(period, anchor)
   const prev = periodRange(period, shift(period, anchor, -1))
   // A single day is one bar, so the daily view charts the two weeks leading up to it
@@ -92,11 +94,16 @@ export default function Dashboard() {
 
       {error && <p className="alert" role="alert">{error}</p>}
 
-      <div className="card figures">
-        <Figure label="Submissions" value={data && subs} note={data && <Change now={subs} was={sum(data.before, 'submissions')} than={LAST[period]} />} />
-        <Figure label="Interviews" accent value={data && ints} note={data && <><Change now={ints} was={sum(data.before, 'interviews')} than={LAST[period]} /> <span><b>{pct(ints, subs)}%</b> hit rate</span></>} />
-        <Figure label="Selected" good={selected > 0} value={data && selected} note={data && (ints ? <span><b>{pct(selected, ints)}%</b> of interviews</span> : 'No interviews yet')} />
-        <Figure label="Idle candidates" warn={data?.missed.length > 0} value={data?.missed.length} note={data && (data.missed.length ? 'No submissions this period' : 'Everyone was submitted')} />
+      {/* the pipeline: what was sent, what it earned, what it won; idle candidates beside it */}
+      <div className="dash-top">
+        <div className="card dash-flow">
+          <Stage href="#submissions" icon={Send} label="Submissions" share={data && (subs ? 1 : 0)} value={data && subs} note={data && <Change now={subs} was={sum(data.before, 'submissions')} than={LAST[period]} />} />
+          <Rate value={data && pct(ints, subs)} label="to interview" />
+          <Stage href="#interviews" icon={CalendarClock} label="Interviews" share={data && (subs ? Math.min(1, ints / subs) : 0)} value={data && ints} note={data && <Change now={ints} was={sum(data.before, 'interviews')} than={LAST[period]} />} />
+          <Rate value={data && pct(selected, ints)} label="selected" />
+          <Stage href="#interviews" icon={BadgeCheck} label="Selected" lead share={data && (subs ? Math.min(1, selected / subs) : 0)} value={data && selected} note={data && (ints ? <span>From <b>{ints}</b> interview{ints === 1 ? '' : 's'}</span> : 'No interviews yet')} />
+        </div>
+        <IdlePanel count={data?.missed.length} onReview={() => idleRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })} />
       </div>
 
       <div className="dash-row wide-left">
@@ -145,7 +152,7 @@ export default function Dashboard() {
           <header className="card-head"><h2>Coming up</h2><a href="#interviews" className="small">All interviews</a></header>
           <Upcoming rows={upcoming} />
         </div>
-        <div className="card">
+        <div className="card dash-idle-list" ref={idleRef}>
           <header className="card-head">
             <h2>Idle candidates</h2>
             <span className="muted small">Assigned, with no submission this period</span>
@@ -180,13 +187,38 @@ export default function Dashboard() {
   )
 }
 
-// Stageshow's Count: changed digits roll from the old figure to the new one
-function Figure({ label, value, note, accent, warn, good, format }) {
+// One step of the pipeline, linked to the page behind it. Stageshow's Count rolls changed digits to the new figure
+function Stage({ href, icon: Icon, label, value, note, lead, share }) {
   return (
-    <div className={`figure ${accent ? 'accent' : ''} ${warn ? 'warn' : ''} ${good ? 'good' : ''}`}>
-      <span>{label}</span>
-      <strong>{value == null ? <span className="skeleton" /> : <Count value={value} format={format} duration={900} />}</strong>
+    <a className={`stage ${lead ? 'lead' : ''}`} href={href}>
+      <span className="stage-label"><i className="stage-icon" aria-hidden><Icon size={16} strokeWidth={1.75} /></i>{label}<ArrowRight className="stage-go" size={14} aria-hidden /></span>
+      <strong>{value == null ? <span className="skeleton" /> : <Count value={value} duration={900} />}</strong>
       <small>{note || ' '}</small>
+      {/* its share of the submissions, so the drop from step to step shows */}
+      <i className="stage-share" aria-hidden><span style={{ transform: `scaleX(${share ?? 0})` }} /></i>
+    </a>
+  )
+}
+
+// The conversion between two steps
+function Rate({ value, label }) {
+  return (
+    <div className="rate">
+      <b>{value == null ? '–' : `${value}%`}</b>
+      <span>{label}</span>
+      <ArrowRight className="rate-arrow" size={16} aria-hidden />
+    </div>
+  )
+}
+
+function IdlePanel({ count, onReview }) {
+  const on = count > 0
+  return (
+    <div className={`card dash-idle ${count == null ? '' : on ? 'on' : 'clear'}`}>
+      <span className="stage-label"><i className="stage-icon" aria-hidden>{on || count == null ? <UserX size={16} strokeWidth={1.75} /> : <CheckCircle2 size={16} strokeWidth={1.75} />}</i>Idle candidates</span>
+      <strong>{count == null ? <span className="skeleton" /> : <Count value={count} duration={900} />}</strong>
+      <small>{count == null ? ' ' : on ? 'Assigned, with no submission this period' : 'Everyone was submitted'}</small>
+      {on && <button className="btn small" onClick={onReview}>Review idle <ArrowDown size={14} /></button>}
     </div>
   )
 }

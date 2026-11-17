@@ -18,7 +18,7 @@ export const TOURS = {
     {
       id: 'figures',
       page: 'dashboard',
-      target: '.card.figures',
+      target: ['.dash-top', '.card.figures'],
       title: 'The team at a glance',
       body: 'Submissions, interviews, selections and idle candidates for the day, week or month you pick, each compared with the period before.',
     },
@@ -88,7 +88,7 @@ export const TOURS = {
     {
       id: 'figures',
       page: 'dashboard',
-      target: '.card.figures',
+      target: ['.dash-top', '.card.figures'],
       title: 'Your numbers at a glance',
       body: 'Submissions, interviews, selections and idle candidates for the day, week or month you pick, each compared with the period before.',
     },

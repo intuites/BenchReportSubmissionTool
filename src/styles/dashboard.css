@@ -1,0 +1,95 @@
+/* =====================================================================
+   Dashboard top: the pipeline (submissions → interviews → selected) in
+   one card, with the conversion between each step, and idle candidates
+   in their own panel beside it. Selectors start at .dash-top so they win
+   over styles.css, which loads after this file.
+   ===================================================================== */
+.dash-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 16px; }
+
+.dash-top .dash-flow {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  padding: 6px; overflow: hidden;
+}
+
+/* a step: label with its icon, the figure, one line of context; the whole step links to its page */
+.dash-top .stage {
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 18px 18px 20px;
+  border-radius: calc(var(--radius) - 4px); color: inherit;
+  transition: background-color var(--m-out) var(--m-ease);
+}
+.dash-top .stage:hover { background: var(--sunken); color: inherit; transition-duration: var(--m-in); }
+.dash-top .stage:focus-visible { outline-offset: -2px; border-radius: calc(var(--radius) - 4px); }
+.dash-top .stage:active { transform: scale(0.99); transition: transform var(--m-press) var(--m-ease); }
+
+.dash-top .stage-label { display: flex; align-items: center; gap: 10px; color: var(--ink-2); font-size: 14px; font-weight: 500; }
+.dash-top .stage-icon {
+  flex: none; display: grid; place-items: center; width: 28px; height: 28px;
+  border-radius: 8px; background: var(--sunken); color: var(--ink-3);
+  transition: background-color var(--m-out) var(--m-ease), color var(--m-out) var(--m-ease);
+}
+.dash-top .stage:hover .stage-icon { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.dash-top .stage-go { margin-left: auto; color: var(--ink-3); opacity: 0; transform: translateX(-4px); transition: opacity var(--m-out) var(--m-ease), transform var(--m-out) var(--m-ease); }
+.dash-top .stage:hover .stage-go, .dash-top .stage:focus-visible .stage-go { opacity: 1; transform: none; transition-duration: var(--m-in); }
+
+.dash-top strong { display: block; font: 500 52px/1 var(--font-display); letter-spacing: -0.04em; animation: figure-in 700ms var(--m-ease-enter) 180ms both; }
+.dash-top small { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 22px; color: var(--ink-3); font-size: 13px; line-height: 22px; }
+.dash-top small > span { white-space: nowrap; }
+.dash-top small b { display: inline-block; margin-right: 4px; padding: 0 6px; border-radius: 6px; background: var(--sunken); color: var(--ink-2); font-weight: 500; line-height: 20px; }
+.dash-top small b.up { background: var(--accent-soft); color: var(--accent-ink); }
+
+.dash-top .stage-share { display: block; height: 6px; margin-top: auto; border-radius: 3px; background: var(--sunken); overflow: hidden; }
+.dash-top .stage-share span { display: block; height: 100%; border-radius: 3px; background: var(--ink-3); transform-origin: left; transition: transform 700ms var(--m-ease-enter); }
+.dash-top .stage.lead .stage-share span { background: var(--accent-mark); }
+.dash-top .stage small { margin-bottom: 8px; }
+/* the outcome that matters carries the accent, and only it */
+.dash-top .stage.lead strong { color: var(--accent-ink); }
+.dash-top .stage.lead .stage-icon { background: var(--accent-soft); color: var(--accent-ink); }
+:root[data-theme='dark'] .dash-top .stage.lead strong { color: var(--accent-mark); }
+
+/* the conversion between two steps: a hairline, the rate on it, an arrow */
+.dash-top .rate {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  width: 92px; padding: 0 4px; text-align: center;
+}
+.dash-top .rate::before { content: ''; position: absolute; top: 18px; bottom: 18px; left: 50%; width: 1px; background: var(--line-soft); }
+.dash-top .rate b, .dash-top .rate span, .dash-top .rate-arrow { position: relative; background: var(--surface); }
+.dash-top .rate b { padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--ink); line-height: 18px; }
+.dash-top .rate span { padding: 0 2px; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.dash-top .rate-arrow { margin-top: 2px; color: var(--ink-3); }
+
+/* idle candidates: calm when nobody waits, tinted with the accent when someone does */
+.dash-top .dash-idle { display: flex; flex-direction: column; gap: 10px; padding: 24px; transition: background-color var(--m-slide) var(--m-ease), border-color var(--m-slide) var(--m-ease); }
+.dash-top .dash-idle.on { background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface)); border-color: color-mix(in srgb, var(--accent-mark) 28%, var(--line)); }
+.dash-top .dash-idle.on .stage-icon { background: var(--surface); color: var(--accent-ink); }
+.dash-top .dash-idle.on strong { color: var(--accent-ink); }
+:root[data-theme='dark'] .dash-top .dash-idle.on strong { color: var(--accent-mark); }
+.dash-top .dash-idle.clear strong { color: var(--ink-3); }
+.dash-top .dash-idle.clear .stage-icon { color: var(--accent-ink); }
+.dash-top .dash-idle .btn { align-self: flex-start; margin-top: auto; }
+.dash-top .dash-idle .btn svg { transition: transform var(--m-out) var(--m-ease); }
+.dash-top .dash-idle .btn:hover svg { transform: translateY(2px); }
+.dash-idle-list { scroll-margin-top: 24px; }
+
+@media (max-width: 1180px) {
+  .dash-top { grid-template-columns: minmax(0, 1fr); }
+  .dash-top .dash-idle { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 16px; }
+  .dash-top .dash-idle .btn { grid-column: 2; grid-row: 1 / span 3; align-self: center; margin: 0; }
+}
+@media (max-width: 1023px) {
+  .dash-top strong { font-size: 40px; }
+  .dash-top .rate { width: 76px; }
+  .dash-top .stage { padding: 14px 12px 16px; }
+}
+/* phones: the steps stack, each conversion a row between them with the arrow pointing down */
+@media (max-width: 760px) {
+  .dash-top .dash-flow { grid-template-columns: minmax(0, 1fr); }
+  .dash-top .rate { flex-direction: row; width: auto; height: 36px; gap: 8px; justify-content: flex-start; padding-left: 26px; }
+  .dash-top .rate::before { top: 0; bottom: 0; left: 31px; }
+  .dash-top .rate-arrow { order: -1; margin: 0; transform: rotate(90deg); padding: 2px 0; }
+  .dash-top .stage-go { opacity: 1; transform: none; }
+  .dash-top strong { font-size: 40px; }
+  .dash-top .dash-idle { display: flex; }
+  .dash-top .dash-idle .btn { align-self: stretch; justify-content: center; min-height: 44px; }
+}
+:root[data-motion='reduced'] .dash-top strong { animation: none; }
+@media (prefers-reduced-motion: reduce) { .dash-top strong { animation: none; } }
