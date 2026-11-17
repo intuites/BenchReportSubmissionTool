@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { chromium, floatStyle, useFloating, useGlass } from '../lib/glass'
 import { iso, today } from '../lib/period'
+import { Liquid, useActiveRect } from './Liquid'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const MONTHS = Array.from({ length: 12 }, (_, m) => new Date(2026, m, 1).toLocaleDateString('en-US', { month: 'long' }))
@@ -86,6 +87,10 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
   const panel = useRef(null)
   const focusNext = useRef(false) // after the next render, put focus on the cursor (keyboard moves, opening)
   const titleId = useId()
+  const body = useRef(null)
+  const [hot, setHot] = useState(null) // the day under the mouse; the liquid lens follows it, else rests on the cursor
+  const lensOn = hot || cursor
+  const lens = useActiveRect(body, mode === 'days' ? lensOn : '')
   const pos = useFloating(true, () => onClose(false), anchor, panel, { align: 'start', gap: 6 })
   useGlass(panel, !!pos)
 
@@ -119,7 +124,7 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
       Home: () => addDays(cursor, -dow), End: () => addDays(cursor, 6 - dow),
       PageUp: () => addMonths(cursor, e.shiftKey ? -12 : -1), PageDown: () => addMonths(cursor, e.shiftKey ? 12 : 1),
     }[k]
-    if (to) { e.preventDefault(); go(to()) }
+    if (to) { e.preventDefault(); setHot(null); go(to()) }
     else if (k === 'Enter' || k === ' ') { e.preventDefault(); if (!off(cursor)) onPick(cursor) }
   }
   // months and years: arrows walk the buttons of the grid
@@ -165,6 +170,8 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
       </header>
 
       {mode === 'days' && (
+        <div className="cal-body" ref={body} onMouseLeave={() => setHot(null)}>
+        <Liquid rect={lens} tone="pick" />
         <table className="cal-grid" role="grid" aria-label={`${MONTHS[m - 1]} ${y}`} onKeyDown={onGridKey}>
           <thead>
             <tr>{DAYS.map((d) => <th key={d} scope="col" abbr={d}>{d.slice(0, 2)}</th>)}</tr>
@@ -188,6 +195,8 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
                         aria-label={fullDate(s)}
                         aria-current={s === now ? 'date' : undefined}
                         aria-disabled={off(s) || undefined}
+                        data-active={s === lensOn}
+                        onMouseEnter={() => setHot(off(s) ? null : s)}
                         onClick={() => { if (!off(s)) onPick(s) }}
                       >
                         {+s.slice(8)}
@@ -199,6 +208,7 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {mode === 'months' && (

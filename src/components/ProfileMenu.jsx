@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronUp, Compass, LogOut, Palette } from 'lucide-react'
 import { floatStyle, useFloating, useGlass } from '../lib/glass'
+import { Liquid, useActiveRect } from './Liquid'
 
 // The signed-in person at the foot of the sidebar. One role is shown, never two:
 // an admin already has everything a recruiter has, so admins read "Admin".
@@ -14,6 +15,8 @@ export default function ProfileMenu({ email, name, role, onTour, onTheme, themeL
   // drawn in a portal so its glass bends the page beside the sidebar, not just the sidebar
   const pos = useFloating(open, () => setOpen(false), box, menu, { up: true, align: 'start', gap: 8 })
   useGlass(menu, open && !!pos)
+  const lens = useActiveRect(menu, open ? active : -1)
+  const item = (i, extra) => ({ role: 'menuitem', 'data-active': i === active, style: { '--i': i }, onMouseEnter: () => setActive(i), ...extra })
 
   useEffect(() => { if (open) setActive(0) }, [open])
   useEffect(() => { if (open && pos) menu.current?.querySelectorAll('[role="menuitem"]')[active]?.focus({ preventScroll: true }) }, [active, open, !!pos])
@@ -34,16 +37,17 @@ export default function ProfileMenu({ email, name, role, onTour, onTheme, themeL
     <div className="profile" ref={box} onKeyDown={onKey}>
       {open && createPortal(
         <div ref={menu} className="profile-menu glass up" role="menu" aria-label="Your account" style={floatStyle(pos, { width: Math.max(260, pos?.width ?? 0) })}>
+          <Liquid rect={lens} tone={active === 3 ? 'bad' : 'pick'} />
           <div className="profile-head">
             <span className="avatar big" aria-hidden>{initial}</span>
             <span className="profile-id"><b title={email}>{name || email}</b>{name && <small title={email}>{email}</small>}</span>
             <span className={`role-badge role-badge--${role}`}>{role === 'admin' ? 'Admin' : 'Recruiter'}</span>
           </div>
-          <button type="button" role="menuitem" data-tour="take-tour" onClick={run(onTour)}><Compass size={18} strokeWidth={1.5} /> Take a tour<small>{role === 'admin' ? 'Admin tour' : 'Recruiter tour'}</small></button>
-          <a role="menuitem" href="#appearance" onClick={() => setOpen(false)}><Palette size={18} strokeWidth={1.5} /> Appearance</a>
-          <button type="button" role="menuitem" onClick={run(onTheme)}><ThemeIcon size={18} strokeWidth={1.5} /> Theme<small>{themeLabel}</small></button>
+          <button type="button" {...item(0)} data-tour="take-tour" onClick={run(onTour)}><Compass size={18} strokeWidth={1.5} /> Take a tour<small>{role === 'admin' ? 'Admin tour' : 'Recruiter tour'}</small></button>
+          <a {...item(1)} href="#appearance" onClick={() => setOpen(false)}><Palette size={18} strokeWidth={1.5} /> Appearance</a>
+          <button type="button" {...item(2)} onClick={run(onTheme)}><ThemeIcon size={18} strokeWidth={1.5} /> Theme<small>{themeLabel}</small></button>
           <hr />
-          <button type="button" role="menuitem" className="danger-item" onClick={run(onSignOut)}><LogOut size={18} strokeWidth={1.5} /> Sign out</button>
+          <button type="button" {...item(3)} className="danger-item" onClick={run(onSignOut)}><LogOut size={18} strokeWidth={1.5} /> Sign out</button>
         </div>,
         document.body,
       )}

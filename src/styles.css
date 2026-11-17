@@ -930,6 +930,24 @@ input[type='date']:hover::-webkit-calendar-picker-indicator, input[type='date']:
   --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 1px 0 0 rgb(255 255 255 / 0.6), inset 0 -1px 0 rgb(17 17 16 / 0.06);
   --glass-shadow: 0 20px 48px -16px rgb(17 17 16 / 0.3), 0 2px 6px rgb(17 17 16 / 0.06);
 }
+/* the glass takes on the person's accent: a breath of it in the body, more in the rim, the hairline and the shadow.
+   Kept to a few percent in the core so every word keeps its contrast in both themes */
+@supports (color: rgb(from red r g b / 0.5)) {
+  :root {
+    --glass-edge: color-mix(in oklab, var(--accent) 9%, rgb(255 255 255 / 0.5));
+    --glass-tint: color-mix(in oklab, var(--accent) 4%, rgb(255 255 255 / 0.6));
+    --glass-shine: color-mix(in oklab, var(--accent) 6%, rgb(255 255 255 / 0.34));
+    --glass-line: rgb(from var(--accent-mark) r g b / 0.2);
+    --glass-shadow: 0 20px 48px -16px rgb(from var(--accent-mark) r g b / 0.3), 0 2px 6px rgb(17 17 16 / 0.06);
+  }
+  :root[data-theme='dark'] {
+    --glass-edge: color-mix(in oklab, var(--accent) 12%, rgb(27 27 26 / 0.55));
+    --glass-tint: color-mix(in oklab, var(--accent) 5%, rgb(27 27 26 / 0.6));
+    --glass-shine: rgb(from var(--accent-mark) r g b / 0.1);
+    --glass-line: rgb(from var(--accent-mark) r g b / 0.24);
+    --glass-shadow: 0 24px 64px -20px rgb(0 0 0 / 0.75), 0 10px 32px -18px rgb(from var(--accent-mark) r g b / 0.45), 0 2px 8px rgb(0 0 0 / 0.3);
+  }
+}
 :root[data-theme='dark'] {
   --glass-edge: rgb(27 27 26 / 0.55);
   --glass-tint: rgb(27 27 26 / 0.6);      /* with the rim, 82% */
@@ -948,13 +966,20 @@ input[type='date']:hover::-webkit-calendar-picker-indicator, input[type='date']:
   -webkit-backdrop-filter: blur(20px) saturate(1.7);
   backdrop-filter: blur(20px) saturate(1.7);
   transform-origin: top left;
-  animation: glass-in 190ms var(--m-ease-enter) both;
+  animation: glass-in 460ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
 }
 .glass.up { --glass-from: 4px; transform-origin: bottom left; }
 /* the core tint sits 7px in with a soft edge, so the rim stays clearer and the bent page reads there,
    while every word sits on the full tint (panels that scroll keep their scroller inside, see Select) */
 .glass::before { content: ''; position: absolute; inset: 7px; z-index: -1; border-radius: max(2px, calc(var(--r-ctl) - 3px)); background: var(--glass-tint); filter: blur(5px); pointer-events: none; }
-@keyframes glass-in { from { opacity: 0; transform: translateY(var(--glass-from)) scale(0.97); } }
+/* opening: a drop that falls from the field, overshoots a touch, wobbles and settles */
+@keyframes glass-in {
+  0% { opacity: 0; transform: translateY(var(--glass-from)) scale(0.9, 0.72); }
+  40% { opacity: 1; transform: translateY(0) scale(1.02, 1.04); }
+  65% { transform: scale(0.992, 0.985); }
+  82% { transform: scale(1.003, 1.004); }
+  100% { opacity: 1; transform: none; }
+}
 /* the lens (glass.js: a crisp bent rim around a frosted core), then saturation. Until the panel is
    measured there is no lens, so the plain frost stands in */
 :root.glass-refract .glass { -webkit-backdrop-filter: var(--glass-lens, blur(16px)) saturate(1.6); backdrop-filter: var(--glass-lens, blur(16px)) saturate(1.6); }
@@ -1064,6 +1089,60 @@ td:last-child > .cal-day.in-range, .cal-day.range-end { border-top-right-radius:
 .cal-foot { display: flex; justify-content: space-between; gap: 8px; margin: 2px -10px 0; padding: 8px 10px 0; border-top: 1px solid var(--glass-line); }
 .cal-foot .btn { color: var(--ink); }
 .cal-foot .btn:hover { transform: none; }
+
+/* =====================================================================
+   Liquid: one highlight flows between the options of every dropdown,
+   menu and calendar (Liquid.jsx). On each axis its leading edge leaves
+   first and springs past a little, the trailing edge follows, so it
+   stretches toward where you point and draws back in. Its colour is
+   the person's accent, in light and dark. Items rise in one by one.
+   ===================================================================== */
+.select-scroll, .cal-body { position: relative; }
+.select-option, .menu-list--floating button, .profile-menu [role='menuitem'], .cal-day { position: relative; z-index: 1; }
+.lens--pick, .lens--bad {
+  --lq: cubic-bezier(0.34, 1.32, 0.5, 1);
+  --lead: 220ms; --trail: 380ms;
+  --t-top: var(--lead); --t-bottom: var(--lead); --t-left: var(--lead); --t-right: var(--lead);
+  transition: top var(--t-top) var(--lq), bottom var(--t-bottom) var(--lq), left var(--t-left) var(--lq), right var(--t-right) var(--lq), background-color var(--m-slide) var(--m-ease);
+  border-radius: var(--r-ctl);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0) 70%), var(--accent-soft);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), inset 0 0 0 1px color-mix(in srgb, var(--accent-mark) 22%, transparent), 0 6px 14px -8px color-mix(in srgb, var(--accent-mark) 60%, transparent);
+  animation: lens-in 260ms var(--lq) both;
+}
+.lens--bad { background: linear-gradient(180deg, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0) 70%), var(--bad-soft); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6), inset 0 0 0 1px color-mix(in srgb, var(--bad) 22%, transparent); }
+:root[data-theme='dark'] .lens--pick { background: linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0) 70%), var(--accent-soft); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), inset 0 0 0 1px color-mix(in srgb, var(--accent-mark) 35%, transparent), 0 8px 18px -10px color-mix(in srgb, var(--accent-mark) 70%, transparent); }
+:root[data-theme='dark'] .lens--bad { background: linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0) 70%), var(--bad-soft); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12); }
+.lens[data-y='down'] { --t-top: var(--trail); }
+.lens[data-y='up'] { --t-bottom: var(--trail); }
+.lens[data-x='right'] { --t-left: var(--trail); }
+.lens[data-x='left'] { --t-right: var(--trail); }
+@keyframes lens-in { from { opacity: 0; transform: scale(0.85, 0.6); } }
+/* the lens is the hover now: no second background under it */
+.select-option.active, .select-option:active,
+.menu-list--floating button:hover, .menu-list--floating button:focus-visible,
+.menu-list--floating .danger-item:hover, .menu-list--floating .danger-item:focus-visible,
+.profile-menu [role='menuitem']:hover, .profile-menu [role='menuitem']:focus-visible,
+.profile-menu .danger-item:hover, .profile-menu .danger-item:focus-visible,
+.cal-day:hover { background: none; }
+.cal-day.in-range:hover { background: var(--accent-soft); }
+.cal-day.selected, .cal-day.selected:hover { background: var(--accent); }
+.cal-day.selected:hover { background: var(--accent-hover); }
+.select-option:active, .menu-list--floating button:active, .profile-menu [role='menuitem']:active { transform: scale(0.985); }
+/* the options rise in one after another as the drop opens */
+.select-option, .menu-list--floating button, .profile-menu [role='menuitem'] { animation: liquid-item 340ms var(--m-ease-enter) both; animation-delay: calc(80ms + var(--i, 0) * 24ms); }
+.cal-body tbody tr { animation: liquid-item 340ms var(--m-ease-enter) both; }
+.cal-body tbody tr:nth-child(2) { animation-delay: 30ms; } .cal-body tbody tr:nth-child(3) { animation-delay: 60ms; }
+.cal-body tbody tr:nth-child(4) { animation-delay: 90ms; } .cal-body tbody tr:nth-child(5) { animation-delay: 120ms; } .cal-body tbody tr:nth-child(6) { animation-delay: 150ms; }
+@keyframes liquid-item { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+:root[data-motion='reduced'] .lens, :root[data-motion='reduced'] .select-option, :root[data-motion='reduced'] .menu-list--floating button,
+:root[data-motion='reduced'] .profile-menu [role='menuitem'], :root[data-motion='reduced'] .cal-body tbody tr { animation-delay: 0ms !important; }
+@media (prefers-reduced-motion: reduce) {
+  .lens, .select-option, .menu-list--floating button, .profile-menu [role='menuitem'], .cal-body tbody tr { animation-delay: 0ms !important; }
+}
+/* solid panels (less transparency, more contrast): a plain tint, no sheen or glow */
+@media (prefers-reduced-transparency: reduce) { .lens--pick { background: var(--accent-soft); box-shadow: none; } .lens--bad { background: var(--bad-soft); box-shadow: none; } }
+:root[data-contrast='high'] .lens--pick { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-mark); }
+:root[data-contrast='high'] .lens--bad { background: var(--bad-soft); box-shadow: inset 0 0 0 1.5px var(--bad); }
 
 /* =====================================================================
    Motion off: honour the Appearance choice and the OS setting.

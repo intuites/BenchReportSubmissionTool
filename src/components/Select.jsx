@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
 import { floatStyle, useFloating, useGlass } from '../lib/glass'
+import { Liquid, useActiveRect } from './Liquid'
 
 const OPEN_KEYS = [' ', 'Enter', 'ArrowDown', 'ArrowUp', 'F4'] // plain or with Alt, as the system popup opens
 
@@ -18,10 +19,12 @@ export default function Select({ children, className = '', ...props }) {
   const pointer = useRef('mouse')
   const typed = useRef({ text: '', at: 0 })
   const uid = useId()
+  const scroll = useRef(null)
   const pos = useFloating(open, () => setOpen(false), box, list, { align: 'start', cap: 320 })
   useGlass(list, open && !!pos) // only once placed at its real width, so no throwaway lens map
 
   const options = open && sel.current ? [...sel.current.options] : []
+  const lens = useActiveRect(scroll, open ? active : -1)
   const optId = (i) => `${uid}-o${i}`
 
   useEffect(() => { if (open && pos) list.current?.focus({ preventScroll: true }) }, [open, !!pos])
@@ -106,7 +109,8 @@ export default function Select({ children, className = '', ...props }) {
           onKeyDown={onListKey}
           style={floatStyle(pos, { minWidth: pos?.width })}
         >
-          <div className="select-scroll" role="presentation">
+          <div className="select-scroll" role="presentation" ref={scroll}>
+          <Liquid rect={lens} tone="pick" />
           {options.map((o, i) => (
             <div
               key={`${i}-${o.value}`}
@@ -114,6 +118,8 @@ export default function Select({ children, className = '', ...props }) {
               role="option"
               aria-selected={o.selected}
               aria-disabled={o.disabled || undefined}
+              data-active={i === active}
+              style={{ '--i': Math.min(i, 10) }}
               className={`select-option ${i === active ? 'active' : ''} ${o.value === '' ? 'placeholder' : ''}`}
               onMouseEnter={() => setActive(i)}
               onMouseDown={(e) => e.preventDefault()}
