@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node src/lib/period.test.js && node src/lib/color.test.js && node src/lib/glass.test.js && node src/lib/dbError.test.js"
+    "test": "node src/lib/period.test.js && node src/lib/color.test.js && node src/lib/glass.test.js && node src/lib/dbError.test.js && node src/lib/live.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

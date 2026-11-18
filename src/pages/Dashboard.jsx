@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CalendarClock, ChevronLeft, ChevronRight, Plus, Send } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { WORK, useLive } from '../lib/live'
 import { fmtDate, iso, periodRange, shift, today } from '../lib/period'
 import PageHead from '../components/PageHead'
 import Segmented from '../components/Segmented'
@@ -35,9 +36,12 @@ export default function Dashboard({ admin }) {
   // figures need no picker: the database only ever gives them their own records.
   const [who, setWho] = useState('')
   const [team, setTeam] = useState([])
+  // a change anywhere in the work: everything below reloads in place (old figures roll to the new ones)
+  const [tick, setTick] = useState(0)
+  useLive(WORK, () => setTick((t) => t + 1))
   useEffect(() => {
     if (admin) supabase.from('bt_recruiters').select('id, name').order('name').then(({ data: rows }) => setTeam(rows ?? []))
-  }, [admin])
+  }, [admin, tick])
   const mine = (rows) => (who ? (rows ?? []).filter((r) => r.recruiter_id === who) : rows)
   const { from, to } = periodRange(period, anchor)
   const prev = periodRange(period, shift(period, anchor, -1))
@@ -65,7 +69,7 @@ export default function Dashboard({ admin }) {
     return () => { live = false }
     // prev and chart are derived from the same inputs as from/to
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to, who])
+  }, [from, to, who, tick])
 
   // Next scheduled interviews, whatever period is shown
   useEffect(() => {
@@ -74,7 +78,7 @@ export default function Dashboard({ admin }) {
       .eq('status', 'Scheduled').gte('interview_date', today())
     if (who) q = q.eq('submissions.recruiter_id', who)
     q.order('interview_date').limit(6).then(({ data: rows, error: e }) => setUpcoming(e ? [] : rows))
-  }, [who])
+  }, [who, tick])
 
   const byRecruiter = useMemo(
     () => (data?.activity ?? []).map((r) => ({ ...r, missed: data.missed.filter((m) => m.recruiter_id === r.recruiter_id).length })),

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Mail, Pencil, Phone } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { WORK, useLive } from '../lib/live'
 import { fmtDate, iso, today } from '../lib/period'
 import PageHead from '../components/PageHead'
 import Segmented from '../components/Segmented'
@@ -57,10 +58,16 @@ export default function RecruiterProfile({ id, admin }) {
     setPerson(p.data[0]); setCands(c.data); setSubs(s.data); setDue(d.data)
   }
   useEffect(() => { loadPerson() }, [id])
+  const [tick, setTick] = useState(0)
+  useLive(WORK, () => { loadPerson(); setTick((t) => t + 1) })
 
+  const shown = useRef('')
   useEffect(() => {
     let live = true
-    setPerf(null)
+    // a new person or period clears the figures; a live update swaps them in place
+    const key = `${id}|${from}|${to}`
+    if (shown.current !== key) setPerf(null)
+    shown.current = key
     Promise.all([
       supabase.rpc('bt_recruiter_profile', { p_recruiter: id, p_from: from, p_to: to }),
       supabase.rpc('bt_recruiter_activity', { p_from: from, p_to: to }),
@@ -74,7 +81,7 @@ export default function RecruiterProfile({ id, admin }) {
       setRank(at >= 0 ? { place: at + 1, of: order.length } : null)
     })
     return () => { live = false }
-  }, [id, from, to])
+  }, [id, from, to, tick])
 
   async function save(payload) {
     const { error: e } = await supabase.from('bt_recruiters').update(payload).eq('id', id)

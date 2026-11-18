@@ -714,3 +714,21 @@ grant execute on function bt_recruiter_activity(date, date) to authenticated;
 grant execute on function bt_dashboard(date, date, uuid) to authenticated;
 grant execute on function bt_recruiter_profile(uuid, date, date) to authenticated;
 grant select on bt_followups_due to authenticated;
+
+-- Live updates: the app listens for changes to these tables (Supabase Realtime) and reloads the open
+-- page in place. Row security still decides who hears what: a recruiter only hears of their own
+-- records. Safe to re-run: a table already in the publication is left as it is.
+do $fn$
+declare t text;
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    create publication supabase_realtime;
+  end if;
+  foreach t in array array['bt_submissions','bt_interviews','bt_candidates','bt_recruiters','bt_companies',
+                           'bt_vendor_contacts','bt_settings','bt_followup_log','bt_admins','bt_blocked']
+  loop
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $fn$;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Mail, Send } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { useLive } from "../lib/live";
 import { fmtDate } from "../lib/period";
 import { SkeletonLine, SkeletonRows } from "../components/Loading";
 import PageHead from "../components/PageHead";
@@ -42,6 +43,22 @@ export default function Settings({ admin }) {
   useEffect(() => {
     load();
   }, []);
+  // live: who is due and what was sent refresh in place; the rule's fields only when nobody is
+  // part-way through changing them
+  useLive(["bt_settings", "bt_followup_log", "bt_candidates", "bt_submissions", "bt_recruiters"], async () => {
+    const [s, d, l] = await Promise.all([
+      supabase.from("bt_settings").select("*").eq("id", 1).single(),
+      supabase.from("bt_followups_due").select("*").order("days_idle", { ascending: false }),
+      supabase
+        .from("bt_followup_log")
+        .select("id, sent_at, days_idle, candidates:bt_candidates(name), recruiters:bt_recruiters(name)")
+        .order("sent_at", { ascending: false })
+        .limit(8),
+    ]);
+    if (!d.error) setDue(d.data);
+    if (!l.error) setLog(l.data);
+    if (!s.error && !changed) { setSettings(s.data); setSaved(s.data); }
+  });
 
   const days = Math.max(1, Number(settings?.followup_days) || 1);
   const changed =

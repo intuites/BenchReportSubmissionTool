@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Download, FileSpreadsheet, FileText } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { WORK, useLive } from '../lib/live'
 import { fmtDate, iso, today } from '../lib/period'
 import { usePrefs } from '../lib/prefs'
 import PageHead from '../components/PageHead'
@@ -36,17 +37,22 @@ export default function Reports({ admin }) {
   const { from, to } = preset === 'custom' ? custom : rangeFor(preset)
   const valid = from && to && from <= to
 
+  const [tick, setTick] = useState(0)
+  useLive(WORK, () => setTick((t) => t + 1))
+  const shown = useRef('')
   useEffect(() => {
     if (!admin || !valid) return
     let live = true
-    setRows(null)
+    // a new period clears the table; a live update swaps the rows in place
+    if (shown.current !== `${from}|${to}`) setRows(null)
+    shown.current = `${from}|${to}`
     supabase.rpc('bt_team_report', { p_from: from, p_to: to }).then(({ data, error: e }) => {
       if (!live) return
       if (e) return setError(e.message.includes('bt_team_report') ? 'The database is missing the team report. Run supabase/schema.sql again in the Supabase SQL Editor.' : e.message)
       setError(''); setRows(data)
     })
     return () => { live = false }
-  }, [admin, from, to, valid])
+  }, [admin, from, to, valid, tick])
 
   const totals = useMemo(() => Object.fromEntries(KEYS.map((k) => [k, (rows ?? []).reduce((n, r) => n + r[k], 0)])), [rows])
   const best = rows?.length ? Math.max(1, ...rows.map((r) => r.interviews)) : 1

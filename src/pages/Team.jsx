@@ -2,6 +2,7 @@ import { SkeletonRows } from '../components/Loading'
 import { useEffect, useState } from 'react'
 import { Power, PowerOff, Settings2, ShieldCheck, ShieldOff, Trash2, UserCheck, UserX, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useLive } from '../lib/live'
 import { accountStatus, approveAsRecruiter, deleteAccount, displayName, listAccounts, makeAdmin, needsDbUpdate, rejectAccount, removeAccess, removeAdmin, setAccountActive } from '../lib/access'
 import MenuButton from '../components/MenuButton'
 import Segmented from '../components/Segmented'
@@ -28,6 +29,8 @@ export default function Team() {
     setOpen(s.data.open_access)
   }
   useEffect(() => { load() }, [])
+  // another admin approves, removes or deactivates someone: the list updates in place
+  useLive(['bt_recruiters', 'bt_admins', 'bt_blocked', 'bt_settings'], load)
 
   // run one change, then reload the list
   async function act(key, fn, confirmText) {

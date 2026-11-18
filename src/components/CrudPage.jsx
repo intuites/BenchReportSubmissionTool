@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { WORK, useLive } from '../lib/live'
 import { confirmDialog } from './Confirm'
 import Modal from './Modal'
 import PageHead from './PageHead'
@@ -35,15 +36,18 @@ export default function CrudPage({ title, subtitle, table, select = '*', order =
   const [limit, setLimit] = useState(PAGE)
 
   // Paged: the API caps a response at 1,000 rows, so never ask for "everything"
-  const load = useCallback(async () => {
-    setLoading(true)
+  // quiet: a live update, so no loading state and nothing cleared (an open form, the search, the scroll stay)
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true)
     const { data, error } = await supabase.from(table).select(select).order(order, { ascending }).order('id').range(0, limit - 1)
     setLoading(false)
-    if (error) setError(error.message)
+    if (error) { if (!quiet) setError(error.message) }
     else { setError(''); setRows(data) }
   }, [table, select, order, ascending, limit])
 
   useEffect(() => { load() }, [load, reloadKey])
+  // someone else (or another tab) adds, edits or removes a record: the list updates in place
+  useLive(WORK, () => load(true))
 
   async function save(payload) {
     const query = editing.id ? supabase.from(table).update(payload).eq('id', editing.id) : supabase.from(table).insert(payload)

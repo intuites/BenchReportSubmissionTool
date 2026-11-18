@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import Select from './Select'
 import DateField from './DateField'
 import { saveErrorMessage } from '../lib/dbError'
+import { useLive } from '../lib/live'
 
 // Field config:
 // { name, label, type: 'text'|'email'|'date'|'number'|'textarea'|'select'|'checkbox',
@@ -14,7 +15,7 @@ export default function RecordForm({ fields, initial = {}, onSubmit, onCancel, s
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const loadRefs = () =>
     fields.filter((f) => f.ref).forEach(async (f) => {
       const cols = f.ref.select || 'id, name'
       const { data, error } = await supabase.from(f.ref.table).select(cols).order(f.ref.order || 'name', { ascending: !f.ref.desc }).limit(f.ref.limit || 1000)
@@ -29,9 +30,12 @@ export default function RecordForm({ fields, initial = {}, onSubmit, onCancel, s
       // A recruiter can only see themselves, so their own name is the one answer: fill it in
       if (f.ref.table === 'bt_recruiters' && data.length === 1) setForm((prev) => (prev[f.name] ? prev : { ...prev, [f.name]: data[0].id }))
     })
-    // fields is static per page
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // fields is static per page
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadRefs() }, [])
+  // a candidate, company or contact added elsewhere appears in the lists at once; the values already
+  // typed or picked in this form stay exactly as they are
+  useLive([...new Set(fields.filter((f) => f.ref).map((f) => f.ref.table))], loadRefs)
 
   // Until every dropdown list has arrived its select has no matching option, so the browser
   // would reject Save with "select an item" on a field that is really filled
