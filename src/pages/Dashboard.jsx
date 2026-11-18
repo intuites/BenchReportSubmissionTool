@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarClock, ChevronLeft, ChevronRight, Plus, Send } from 'lucide-react'
+import { BadgeCheck, CalendarCheck, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, Hourglass, Plus, Send } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { fmtDate, iso, periodRange, shift, today } from '../lib/period'
 import PageHead from '../components/PageHead'
@@ -9,6 +9,7 @@ import Select from '../components/Select'
 import { Count } from '../stageshow/kit/motion/Count'
 import { SkeletonLine, SkeletonRows } from '../components/Loading'
 import '../styles/dashboard-glass.css'
+import '../styles/dashboard-vivid.css'
 
 const PERIODS = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']]
 const LAST = { day: 'the day before', week: 'last week', month: 'last month' }
@@ -89,7 +90,7 @@ export default function Dashboard({ admin }) {
   const label = period === 'day' ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`
 
   return (
-    <section className="page dash-glass">
+    <section className="page dash-glass dv" onPointerMove={spotlight}>
       <PageHead title="Dashboard" subtitle={label}>
         {admin && (
           <div className="field who-pick">
@@ -112,10 +113,18 @@ export default function Dashboard({ admin }) {
       {error && <p className="alert" role="alert">{error}</p>}
 
       <div className="card figures">
-        <Figure label="Submissions" value={data && subs} note={data && <Change now={subs} was={sum(data.before, 'submissions')} than={LAST[period]} />} />
-        <Figure label="Interviews" accent value={data && ints} note={data && <><Change now={ints} was={sum(data.before, 'interviews')} than={LAST[period]} /> <span><b>{pct(ints, subs)}%</b> hit rate</span></>} />
-        <Figure label="Selected" good={selected > 0} value={data && selected} note={data && (ints ? <span><b>{pct(selected, ints)}%</b> of interviews</span> : 'No interviews yet')} />
-        <Figure label="Idle candidates" warn={data?.missed.length > 0} value={data?.missed.length} note={data && (data.missed.length ? 'No submissions this period' : 'Everyone was submitted')} />
+        <Figure icon={Send} label="Submissions" value={data && subs} note={data && <Change now={subs} was={sum(data.before, 'submissions')} than={LAST[period]} />}>
+          <Spark days={data?.days} k="submissions" />
+        </Figure>
+        <Figure icon={CalendarCheck} label="Interviews" value={data && ints} note={data && <><Change now={ints} was={sum(data.before, 'interviews')} than={LAST[period]} /> <span><b>{pct(ints, subs)}%</b> hit rate</span></>}>
+          <Spark days={data?.days} k="interviews" />
+        </Figure>
+        <Figure icon={BadgeCheck} label="Selected" good={selected > 0} value={data && selected} note={data && (ints ? <span><b>{pct(selected, ints)}%</b> of interviews</span> : 'No interviews yet')}>
+          {data && <Pips share={ints ? selected / ints : 0} />}
+        </Figure>
+        <Figure icon={Hourglass} label="Idle candidates" warn={data?.missed.length > 0} value={data?.missed.length} note={data && (data.missed.length ? 'No submissions this period' : 'Everyone was submitted')}>
+          {data && <Faces names={data.missed.map((m) => m.candidate_name)} />}
+        </Figure>
       </div>
 
       <div className="dash-row wide-left">
@@ -128,7 +137,7 @@ export default function Dashboard({ admin }) {
         </div>
         <div className="card">
           <header className="card-head"><h2>Interview outcomes</h2><span className="muted small">{data ? `${Object.values(data.statuses).reduce((a, b) => a + b, 0)} this period` : ''}</span></header>
-          <Outcomes statuses={data?.statuses} />
+          <OutcomeRing statuses={data?.statuses} />
         </div>
       </div>
 
@@ -142,9 +151,9 @@ export default function Dashboard({ admin }) {
           <tbody>
             {!data && <SkeletonRows cols={5} rows={4} />}
             {data && byRecruiter.length === 0 && <tr><td colSpan={5} className="empty">Add recruiters to see activity</td></tr>}
-            {byRecruiter.map((r) => (
+            {byRecruiter.map((r, i) => (
               <tr key={r.recruiter_id}>
-                <td data-label="Recruiter"><div className="who"><span className="initials" aria-hidden>{r.recruiter_name.split(' ').map((w) => w[0]).slice(0, 2).join('')}</span><div><a className="row-link" href={`#recruiters/${r.recruiter_id}`}><strong className="nowrap">{r.recruiter_name}</strong></a>{r.missed > 0 && <div className="sub warn-text nowrap">{r.missed} idle candidate{r.missed > 1 ? 's' : ''}</div>}</div></div></td>
+                <td data-label="Recruiter"><div className="who">{byRecruiter.length > 1 && <span className={`rank ${i < 3 && r.interviews + r.submissions > 0 ? `r${i + 1}` : ''}`} aria-label={`Rank ${i + 1}`}>{i + 1}</span>}<span className="initials" aria-hidden>{r.recruiter_name.split(' ').map((w) => w[0]).slice(0, 2).join('')}</span><div><a className="row-link" href={`#recruiters/${r.recruiter_id}`}><strong className="nowrap">{r.recruiter_name}</strong></a>{r.missed > 0 && <div className="sub warn-text nowrap">{r.missed} idle candidate{r.missed > 1 ? 's' : ''}</div>}</div></div></td>
                 <td data-label="Submissions" className="num">{r.submissions}</td>
                 <td data-label="Interviews"><div className="meter"><i><span style={{ width: `${(r.interviews / maxInt) * 100}%` }} /></i><b>{r.interviews}</b></div></td>
                 <td data-label="Hit rate" className="num">{r.submissions ? `${pct(r.interviews, r.submissions)}%` : '—'}</td>
@@ -195,17 +204,100 @@ export default function Dashboard({ admin }) {
           </table>
         </div>
       </div>
+      <div className="dv-sky" aria-hidden><i /><i /><i /></div>
     </section>
   )
 }
 
+// The light under the pointer: each glass card is lit where the mouse is (CSS reads --mx, --my)
+function spotlight(e) {
+  if (e.pointerType !== 'mouse') return
+  const card = e.target.closest?.('.card, .figure')
+  if (!card) return
+  const r = card.getBoundingClientRect()
+  card.style.setProperty('--mx', `${e.clientX - r.left}px`)
+  card.style.setProperty('--my', `${e.clientY - r.top}px`)
+}
+
 // Stageshow's Count: changed digits roll from the old figure to the new one
-function Figure({ label, value, note, accent, warn, good, format }) {
+function Figure({ icon: Icon, label, value, note, warn, good, format, children }) {
   return (
-    <div className={`figure ${accent ? 'accent' : ''} ${warn ? 'warn' : ''} ${good ? 'good' : ''}`}>
-      <span>{label}</span>
+    <div className={`figure ${warn ? 'warn' : ''} ${good ? 'good' : ''}`}>
+      <span className="fig-label">{Icon && <i className="fig-icon" aria-hidden><Icon size={16} strokeWidth={1.75} /></i>}{label}</span>
       <strong>{value == null ? <span className="skeleton" /> : <Count value={value} format={format} duration={900} />}</strong>
       <small>{note || ' '}</small>
+      <span className="fig-viz" aria-hidden>{children}</span>
+    </div>
+  )
+}
+
+// The period's days as a small filled line under a figure; it draws in from the left
+function Spark({ days: all, k }) {
+  // days still ahead would flatten the line to zero, so it runs to today
+  const past = all?.filter((d) => d.day <= today())
+  const days = past?.length > 1 ? past : all
+  if (!days?.length) return null
+  const top = Math.max(1, ...days.map((d) => d[k]))
+  const n = days.length
+  const pts = days.map((d, i) => [n === 1 ? 50 : (i / (n - 1)) * 100, 30 - (d[k] / top) * 26])
+  const line = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)}`).join(' ')
+  return (
+    <svg className="spark" viewBox="0 0 100 32" preserveAspectRatio="none">
+      <path className="spark-a" d={`${line} L100,32 L0,32 Z`} />
+      <path className="spark-l" d={line} />
+    </svg>
+  )
+}
+
+// Twenty pips, lit to the share of interviews that ended in a selection
+function Pips({ share }) {
+  const on = Math.round(share * 20)
+  return <span className="pips">{Array.from({ length: 20 }, (_, i) => <i key={i} className={i < on ? 'on' : ''} style={{ '--i': i }} />)}</span>
+}
+
+// The first idle candidates as overlapping initials, or a tick when nobody waits
+function Faces({ names }) {
+  if (!names.length) return <span className="faces"><span className="face ok"><CheckCircle2 size={16} /></span></span>
+  return (
+    <span className="faces">
+      {names.slice(0, 5).map((nm, i) => <span key={nm + i} className="face" style={{ '--i': i }}>{nm.split(' ').map((w) => w[0]).slice(0, 2).join('')}</span>)}
+      {names.length > 5 && <span className="face more">+{names.length - 5}</span>}
+    </span>
+  )
+}
+
+// The period's interviews as a ring by status, the total in the middle, a labelled row per status
+function OutcomeRing({ statuses }) {
+  if (!statuses) return <div className="outcomes" aria-busy="true"><SkeletonLine width="100%" height={12} />{[64, 52, 70, 48, 58].map((w) => <SkeletonLine key={w} width={`${w}%`} />)}</div>
+  const total = Object.values(statuses).reduce((a, b) => a + b, 0)
+  if (!total) return <p className="empty-note">No interviews in this period yet</p>
+  const shown = OUTCOMES.filter(([s]) => statuses[s])
+  const gap = shown.length > 1 ? 1.2 : 0
+  let at = 0
+  return (
+    <div className="ring-wrap">
+      <div className="ring" role="img" aria-label={OUTCOMES.map(([s]) => `${s} ${statuses[s] ?? 0}`).join(', ')}>
+        <svg viewBox="0 0 120 120" aria-hidden>
+          <circle className="ring-track" cx="60" cy="60" r="50" pathLength="100" />
+          {shown.map(([s, tone], i) => {
+            const len = Math.max(0.01, (statuses[s] / total) * 100 - gap)
+            const seg = <circle key={s} className={`ring-seg ring--${tone}`} cx="60" cy="60" r="50" pathLength="100" style={{ strokeDasharray: `${len} ${100 - len}`, strokeDashoffset: -at, animationDelay: `${120 + i * 90}ms` }} />
+            at += (statuses[s] / total) * 100
+            return seg
+          })}
+        </svg>
+        <span className="ring-mid"><b>{total}</b><small>{total === 1 ? 'interview' : 'interviews'}</small></span>
+      </div>
+      <ul className="outcome-list">
+        {OUTCOMES.map(([s, tone]) => (
+          <li key={s} className={statuses[s] ? '' : 'zero'}>
+            <i className={`dot seg--${tone}`} aria-hidden />
+            <span>{s}</span>
+            <b>{statuses[s] ?? 0}</b>
+            <small>{pct(statuses[s] ?? 0, total)}%</small>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
