@@ -66,7 +66,9 @@ function Drop({ rect, tone }) {
     if (!node || !rect) return
     const box = node.offsetParent
     if (!box) return
-    const t = { x1: rect.left, x2: box.clientWidth - rect.right, y1: rect.top, y2: box.clientHeight - rect.bottom }
+    // --drop-pad lets a drop wrap its item a little (the calendar's days)
+    const pad = parseFloat(getComputedStyle(node).getPropertyValue('--drop-pad')) || 0
+    const t = { x1: rect.left - pad, x2: box.clientWidth - rect.right + pad, y1: rect.top - pad, y2: box.clientHeight - rect.bottom + pad }
     const cur = state.current
     // a new drop (just opened, or back after no item was under it) appears in place
     if (!cur || cur.node !== node || reducedNow()) {
@@ -84,6 +86,7 @@ function Drop({ rect, tone }) {
       node.dispatchEvent(new CustomEvent('liquidmove', { bubbles: true })) // glass.js rests its lens meanwhile
     }
     let last = performance.now()
+    const from = { x: cur.x1, y: cur.y1 }
     const step = (now) => {
       const dt = Math.min(0.032, (now - last) / 1000)
       last = now
@@ -102,6 +105,8 @@ function Drop({ rect, tone }) {
         Object.assign(cur, t, { v: { x1: 0, x2: 0, y1: 0, y2: 0 } })
         draw(node, cur, t, radius.current)
         node.removeAttribute('data-moving')
+        // landing after a real move sends a soft ring out across the glass, like a drop meeting water
+        if (Math.hypot(t.x1 - from.x, t.y1 - from.y) > 4) ripple(node)
       }
     }
     raf.current = requestAnimationFrame(step)
@@ -110,6 +115,37 @@ function Drop({ rect, tone }) {
   useEffect(() => () => cancelAnimationFrame(raf.current), [])
   if (!rect) return null
   return <span ref={el} className={`lens lens--${tone} drop`} aria-hidden />
+}
+
+// A ring of water spreading from where the drop lands
+function ripple(node) {
+  if (reducedNow() || !node.parentElement) return
+  const r = document.createElement('span')
+  r.className = 'drop-ripple'
+  r.setAttribute('aria-hidden', 'true')
+  for (const k of ['transform', 'width', 'height', 'borderRadius']) r.style[k] = node.style[k]
+  node.parentElement.insertBefore(r, node)
+  r.addEventListener('animationend', () => r.remove(), { once: true })
+}
+
+// Picking an item: the drop bursts. A flash, a ring and a spray of droplets over the item, drawn
+// above the page so it can finish while the panel closes. Returns how long to wait before closing.
+export function burst(el) {
+  if (!el || reducedNow()) return 0
+  const r = el.getBoundingClientRect()
+  const b = document.createElement('div')
+  b.className = 'drop-burst'
+  b.setAttribute('aria-hidden', 'true')
+  Object.assign(b.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, borderRadius: getComputedStyle(el).borderRadius })
+  const beads = Array.from({ length: 10 }, (_, i) => {
+    const a = (i / 10) * Math.PI * 2 + (i % 2) * 0.25
+    const d = Math.max(r.width, r.height) / 2 + 10 + (i % 3) * 8
+    return `<i class="bead" style="--dx:${(Math.cos(a) * d).toFixed(1)}px;--dy:${(Math.sin(a) * d).toFixed(1)}px;--s:${(0.7 + (i % 3) * 0.2).toFixed(2)}"></i>`
+  }).join('')
+  b.innerHTML = `<i class="flash"></i><i class="ring"></i>${beads}`
+  document.body.appendChild(b)
+  setTimeout(() => b.remove(), 760)
+  return 220
 }
 
 // Writes the drop's shape: its box, thinned across the way it stretches (a drop keeps its volume),

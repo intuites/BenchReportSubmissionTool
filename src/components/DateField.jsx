@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { chromium, floatStyle, useFloating, useGlass } from '../lib/glass'
 import { iso, today } from '../lib/period'
-import { Liquid, useActiveRect } from './Liquid'
+import { Liquid, burst, useActiveRect } from './Liquid'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const MONTHS = Array.from({ length: 12 }, (_, m) => new Date(2026, m, 1).toLocaleDateString('en-US', { month: 'long' }))
@@ -89,7 +89,9 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
   const titleId = useId()
   const body = useRef(null)
   const [hot, setHot] = useState(null) // the day under the mouse; the liquid lens follows it, else rests on the cursor
-  const [away, setAway] = useState(false) // the mouse has left the days: the lens flows home to today (when it is in this month)
+  // the drop's home is today: it starts there, flows out to the day you point at and back when you leave.
+  // An arrow key takes it to the keyboard's day instead
+  const [away, setAway] = useState(true)
   const lensOn = hot || (away && now.slice(0, 7) === cursor.slice(0, 7) ? now : cursor)
   const lens = useActiveRect(body, mode === 'days' ? lensOn : '')
   const pos = useFloating(true, () => onClose(false), anchor, panel, { align: 'start', gap: 6 })
@@ -113,6 +115,15 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
   }, [cursor, mode, !!pos, req])
 
   const off = (s) => (min && s < min) || (max && s > max)
+  // picking a day bursts its drop, then the calendar closes on the new date
+  const picking = useRef(false)
+  const pickDay = (s) => {
+    if (off(s) || picking.current) return
+    picking.current = true
+    const wait = burst(panel.current?.querySelector(`[data-day="${s}"]`))
+    if (wait) setTimeout(() => onPick(s), wait)
+    else onPick(s)
+  }
   const go = (s) => { focusNext.current = true; setDay(s) }
   const monthStep = (n) => setDay(addMonths(cursor, n))
 
@@ -126,7 +137,7 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
       PageUp: () => addMonths(cursor, e.shiftKey ? -12 : -1), PageDown: () => addMonths(cursor, e.shiftKey ? 12 : 1),
     }[k]
     if (to) { e.preventDefault(); setHot(null); setAway(false); go(to()) }
-    else if (k === 'Enter' || k === ' ') { e.preventDefault(); if (!off(cursor)) onPick(cursor) }
+    else if (k === 'Enter' || k === ' ') { e.preventDefault(); pickDay(cursor) }
   }
   // months and years: arrows walk the buttons of the grid
   function onPickKey(e, cols) {
@@ -198,7 +209,7 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
                         aria-disabled={off(s) || undefined}
                         data-active={s === lensOn}
                         onMouseEnter={() => setHot(off(s) ? null : s)}
-                        onClick={() => { if (!off(s)) onPick(s) }}
+                        onClick={() => pickDay(s)}
                       >
                         {+s.slice(8)}
                       </button>
