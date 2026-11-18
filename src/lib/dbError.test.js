@@ -14,5 +14,6 @@ assert.equal(
   '"Apple LLC" already exists. Use a different company.',
 )
 assert.equal(saveErrorMessage({ code: '23505', message: 'x' }, fields, form), 'This record already exists.')
-assert.equal(saveErrorMessage({ code: '42501', message: 'permission denied' }, fields, form), 'permission denied')
+assert.equal(saveErrorMessage({ code: '42501', message: 'new row violates row-level security policy' }, fields, form), 'You can only save records assigned to you.')
+assert.equal(saveErrorMessage({ code: '22001', message: 'value too long' }, fields, form), 'value too long')
 console.log('dbError ok')

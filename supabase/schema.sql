@@ -226,22 +226,27 @@ $fn$;
 -- Dashboard trend and outcomes, counted here so the 1,000-row cap never cuts them:
 --   days:     [{ "day": "2026-11-16", "submissions": 4, "interviews": 1 }, ...] one row per day, zeros included
 --   statuses: { "Scheduled": 3, "Selected": 1, ... } interviews in the period by status
-create or replace function bt_dashboard(p_from date, p_to date)
+--   p_recruiter: only that recruiter's work (an admin looking at one person); null = everyone the caller may see
+drop function if exists bt_dashboard(date, date);
+create or replace function bt_dashboard(p_from date, p_to date, p_recruiter uuid default null)
 returns jsonb
 language sql stable set search_path = public as $fn$
   select jsonb_build_object(
     'days', (
       select coalesce(jsonb_agg(jsonb_build_object(
                'day', d.day,
-               'submissions', (select count(*) from bt_submissions s where s.submission_date = d.day),
-               'interviews',  (select count(*) from bt_interviews i where i.interview_date = d.day)
+               'submissions', (select count(*) from bt_submissions s
+                               where s.submission_date = d.day and (p_recruiter is null or s.recruiter_id = p_recruiter)),
+               'interviews',  (select count(*) from bt_interviews i join bt_submissions s on s.id = i.submission_id
+                               where i.interview_date = d.day and (p_recruiter is null or s.recruiter_id = p_recruiter))
              ) order by d.day), '[]'::jsonb)
       from (select g::date as day from generate_series(p_from, p_to, interval '1 day') g) d
     ),
     'statuses', (
       select coalesce(jsonb_object_agg(status, n), '{}'::jsonb)
-      from (select status, count(*)::int as n from bt_interviews
-            where interview_date between p_from and p_to group by status) t
+      from (select i.status, count(*)::int as n from bt_interviews i join bt_submissions s on s.id = i.submission_id
+            where i.interview_date between p_from and p_to and (p_recruiter is null or s.recruiter_id = p_recruiter)
+            group by i.status) t
     )
   );
 $fn$;
@@ -347,8 +352,8 @@ where c.active and r.active
 -- in bt_recruiters or listed in bt_admins. Everyone else
 -- gets a "waiting for access" screen. The follow-up job uses the service
 -- role key, which bypasses these rules.
--- shortcut: admins and recruiters have the same rights; add per-role
--- policies (e.g. only admins edit settings) when you need that.
+-- A recruiter sees and changes only their own candidates, submissions and
+-- interviews; admins see everyone's (policies at the end of this file).
 -- =====================================================================
 create table if not exists bt_admins (
   email       text primary key check (email = lower(email)),
@@ -400,6 +405,27 @@ language sql stable security definer set search_path = '' as $fn$
 $fn$;
 revoke execute on function bt_private.is_admin() from public, anon;
 grant execute on function bt_private.is_admin() to authenticated;
+
+-- The signed-in person's own recruiter record (null when they have none).
+-- Active or not: a deactivated recruiter who still gets in (open access) sees only their own records.
+create or replace function bt_private.my_recruiter_id() returns uuid
+language sql stable security definer set search_path = '' as $fn$
+  select r.id from auth.users u
+  join public.bt_recruiters r on lower(r.email) = lower(u.email)
+  where u.id = auth.uid() and u.email_confirmed_at is not null
+  limit 1;
+$fn$;
+revoke execute on function bt_private.my_recruiter_id() from public, anon;
+grant execute on function bt_private.my_recruiter_id() to authenticated;
+
+-- Sees every recruiter's records: admins, and members with no recruiter record
+-- (only possible while open_access is on). A recruiter sees only their own.
+create or replace function bt_private.sees_all() returns boolean
+language sql stable security definer set search_path = '' as $fn$
+  select bt_private.is_admin() or (bt_private.is_member() and bt_private.my_recruiter_id() is null);
+$fn$;
+revoke execute on function bt_private.sees_all() from public, anon;
+grant execute on function bt_private.sees_all() to authenticated;
 
 -- Everyone who has signed up, with their access, for the Team access page.
 -- auth.users is private to Supabase, so only admins may call this.
@@ -603,16 +629,38 @@ grant execute on function public.bt_is_member(), public.bt_is_admin(), public.bt
 do $fn$
 declare t text;
 begin
-  -- the working tables: every approved member reads and writes them
   foreach t in array array['bt_candidates','bt_companies','bt_vendor_contacts','bt_submissions','bt_interviews']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists "signed-in full access" on %I', t);
     execute format('drop policy if exists "members full access" on %I', t);
+    execute format('drop policy if exists "own records" on %I', t);
+  end loop;
+  -- the shared directory of vendor companies and their contacts: every approved member reads and writes it
+  foreach t in array array['bt_companies','bt_vendor_contacts']
+  loop
     -- (select ...) runs the check once per query, not once per row
     execute format('create policy "members full access" on %I for all to authenticated using ((select bt_private.is_member())) with check ((select bt_private.is_member()))', t);
   end loop;
 end $fn$;
+
+-- Candidates, submissions and interviews belong to a recruiter. A recruiter reads and
+-- writes only their own and can never see, add, change or delete another recruiter's;
+-- admins see and change everyone's. The reports run with the caller's rights, so a
+-- recruiter's dashboard counts only their own work.
+create policy "own records" on bt_candidates for all to authenticated
+  using ((select bt_private.is_member()) and ((select bt_private.sees_all()) or recruiter_id = (select bt_private.my_recruiter_id())))
+  with check ((select bt_private.is_member()) and ((select bt_private.sees_all()) or recruiter_id = (select bt_private.my_recruiter_id())));
+-- a submission can only be saved for a candidate you can see (key checks alone would let
+-- a recruiter who knows another recruiter's candidate id submit them)
+create policy "own records" on bt_submissions for all to authenticated
+  using ((select bt_private.is_member()) and ((select bt_private.sees_all()) or recruiter_id = (select bt_private.my_recruiter_id())))
+  with check ((select bt_private.is_member()) and ((select bt_private.sees_all()) or recruiter_id = (select bt_private.my_recruiter_id()))
+              and exists (select 1 from public.bt_candidates c where c.id = bt_submissions.candidate_id));
+-- an interview belongs to whoever owns its submission (the submissions rule above filters this lookup)
+create policy "own records" on bt_interviews for all to authenticated
+  using ((select bt_private.is_member()) and exists (select 1 from public.bt_submissions s where s.id = bt_interviews.submission_id))
+  with check ((select bt_private.is_member()) and exists (select 1 from public.bt_submissions s where s.id = bt_interviews.submission_id));
 
 -- Tables that decide who gets in and how the app behaves: members may read,
 -- only admins may change. (Before this, any member could add themselves to
@@ -627,16 +675,20 @@ begin
     execute format('drop policy if exists "admins write" on %I', t);
   end loop;
 end $fn$;
--- recruiters: the team list is readable by members; adding, editing and removing is for admins
-create policy "members read" on bt_recruiters for select to authenticated using ((select bt_private.is_member()));
+-- recruiters: admins read the whole team; a recruiter reads only their own row.
+-- Adding, editing and removing is for admins
+create policy "members read" on bt_recruiters for select to authenticated
+  using ((select bt_private.is_member()) and ((select bt_private.sees_all()) or id = (select bt_private.my_recruiter_id())));
 create policy "admins write" on bt_recruiters for all to authenticated
   using ((select bt_private.is_admin())) with check ((select bt_private.is_admin()));
 -- settings: members read the rule and the team look; only admins change them (open_access too)
 create policy "members read" on bt_settings for select to authenticated using ((select bt_private.is_member()));
 create policy "admins write" on bt_settings for update to authenticated
   using ((select bt_private.is_admin())) with check ((select bt_private.is_admin()));
--- follow-up log: members read it; only the email job writes it (service role, which bypasses row security)
-create policy "members read" on bt_followup_log for select to authenticated using ((select bt_private.is_member()));
+-- follow-up log: admins read all of it, a recruiter only their own lines; only the email
+-- job writes it (service role, which bypasses row security)
+create policy "members read" on bt_followup_log for select to authenticated
+  using ((select bt_private.is_member()) and ((select bt_private.sees_all()) or recruiter_id = (select bt_private.my_recruiter_id())));
 -- admins list: only admins see or change it (membership checks read it through bt_private)
 drop policy if exists "admins write" on bt_blocked;
 create policy "admins write" on bt_blocked for all to authenticated
@@ -655,10 +707,10 @@ begin
 end $fn$;
 
 -- Signed-out visitors can call nothing; signed-in members get the reports
-revoke execute on function bt_missed_submissions(date, date), bt_recruiter_activity(date, date), bt_dashboard(date, date),
+revoke execute on function bt_missed_submissions(date, date), bt_recruiter_activity(date, date), bt_dashboard(date, date, uuid),
                            bt_recruiter_profile(uuid, date, date), bt_candidates_track_assignment(), bt_submissions_check_contact() from public, anon;
 grant execute on function bt_missed_submissions(date, date) to authenticated;
 grant execute on function bt_recruiter_activity(date, date) to authenticated;
-grant execute on function bt_dashboard(date, date) to authenticated;
+grant execute on function bt_dashboard(date, date, uuid) to authenticated;
 grant execute on function bt_recruiter_profile(uuid, date, date) to authenticated;
 grant select on bt_followups_due to authenticated;

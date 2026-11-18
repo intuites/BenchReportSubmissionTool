@@ -5,6 +5,7 @@ import { fmtDate, iso, periodRange, shift, today } from '../lib/period'
 import PageHead from '../components/PageHead'
 import Segmented from '../components/Segmented'
 import DateField from '../components/DateField'
+import Select from '../components/Select'
 import { Count } from '../stageshow/kit/motion/Count'
 import { SkeletonLine, SkeletonRows } from '../components/Loading'
 import '../styles/dashboard-glass.css'
@@ -25,12 +26,20 @@ function logSubmission(prefill) {
   location.hash = 'submissions'
 }
 
-export default function Dashboard() {
+export default function Dashboard({ admin }) {
   const [period, setPeriod] = useState('week')
   const [anchor, setAnchor] = useState(today())
   const [data, setData] = useState(null)
   const [upcoming, setUpcoming] = useState(null)
   const [error, setError] = useState('')
+  // Admins see everyone's figures, or one recruiter's when picked. A recruiter's own
+  // figures need no picker: the database only ever gives them their own records.
+  const [who, setWho] = useState('')
+  const [team, setTeam] = useState([])
+  useEffect(() => {
+    if (admin) supabase.from('bt_recruiters').select('id, name').order('name').then(({ data: rows }) => setTeam(rows ?? []))
+  }, [admin])
+  const mine = (rows) => (who ? (rows ?? []).filter((r) => r.recruiter_id === who) : rows)
   const { from, to } = periodRange(period, anchor)
   const prev = periodRange(period, shift(period, anchor, -1))
   // A single day is one bar, so the daily view charts the two weeks leading up to it
@@ -44,28 +53,29 @@ export default function Dashboard() {
       supabase.rpc('bt_recruiter_activity', { p_from: from, p_to: to }),
       supabase.rpc('bt_missed_submissions', { p_from: from, p_to: to }),
       supabase.rpc('bt_recruiter_activity', { p_from: prev.from, p_to: prev.to }),
-      supabase.rpc('bt_dashboard', { p_from: from, p_to: to }),
-      chart.from === from ? null : supabase.rpc('bt_dashboard', { p_from: chart.from, p_to: chart.to }),
+      supabase.rpc('bt_dashboard', { p_from: from, p_to: to, p_recruiter: who || null }),
+      chart.from === from ? null : supabase.rpc('bt_dashboard', { p_from: chart.from, p_to: chart.to, p_recruiter: who || null }),
     ]).then((results) => {
       if (!live) return
       const failed = results.find((r) => r?.error)
       if (failed) return setError(failed.error.message.includes('bt_dashboard') ? 'The database is missing the dashboard report. Run supabase/schema.sql again in the Supabase SQL Editor.' : failed.error.message)
       setError('')
       const [activity, missed, before, dash, chartDash] = results.map((r) => r?.data)
-      setData({ activity, missed, before, statuses: dash.statuses ?? {}, days: (chartDash ?? dash).days ?? [] })
+      setData({ activity: mine(activity), missed: mine(missed), before: mine(before), statuses: dash.statuses ?? {}, days: (chartDash ?? dash).days ?? [] })
     })
     return () => { live = false }
     // prev and chart are derived from the same inputs as from/to
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to])
+  }, [from, to, who])
 
   // Next scheduled interviews, whatever period is shown
   useEffect(() => {
-    supabase.from('bt_interviews')
-      .select('id, interview_date, round, submissions:bt_submissions(recruiters:bt_recruiters(name), candidates:bt_candidates(name), companies:bt_companies(name))')
-      .eq('status', 'Scheduled').gte('interview_date', today()).order('interview_date').limit(6)
-      .then(({ data: rows, error: e }) => setUpcoming(e ? [] : rows))
-  }, [])
+    let q = supabase.from('bt_interviews')
+      .select('id, interview_date, round, submissions:bt_submissions!inner(recruiter_id, recruiters:bt_recruiters(name), candidates:bt_candidates(name), companies:bt_companies(name))')
+      .eq('status', 'Scheduled').gte('interview_date', today())
+    if (who) q = q.eq('submissions.recruiter_id', who)
+    q.order('interview_date').limit(6).then(({ data: rows, error: e }) => setUpcoming(e ? [] : rows))
+  }, [who])
 
   const byRecruiter = useMemo(
     () => (data?.activity ?? []).map((r) => ({ ...r, missed: data.missed.filter((m) => m.recruiter_id === r.recruiter_id).length })),
@@ -81,6 +91,14 @@ export default function Dashboard() {
   return (
     <section className="page dash-glass">
       <PageHead title="Dashboard" subtitle={label}>
+        {admin && (
+          <div className="field who-pick">
+            <Select value={who} onChange={(e) => setWho(e.target.value)} aria-label="Whose figures">
+              <option value="">All recruiters</option>
+              {team.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </Select>
+          </div>
+        )}
         <Segmented label="Report period" items={PERIODS} value={period} onChange={setPeriod} />
         <div className="stepper">
           <button className="icon-btn" onClick={() => setAnchor(shift(period, anchor, -1))} aria-label="Previous period"><ChevronLeft size={18} /></button>

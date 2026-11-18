@@ -205,6 +205,9 @@ code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunke
 /* the heading's menus (Export, colour) open over the blocks below, which arrive later and would paint on top */
 .page-head { position: relative; z-index: 20; }
 .head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* the admin's "whose figures" picker on the dashboard */
+.head-actions .who-pick { width: 200px; }
+@media (max-width: 640px) { .head-actions .who-pick { width: 100%; } }
 /* one toolbar: the filters, a hairline, then the page's one main action */
 .head-actions > .btn.primary:not(:first-child) { position: relative; margin-left: 9px; }
 .head-actions > .btn.primary:not(:first-child)::before { content: ''; position: absolute; left: -9px; top: 8px; bottom: 8px; width: 1px; background: var(--line); pointer-events: none; }

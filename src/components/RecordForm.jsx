@@ -26,6 +26,8 @@ export default function RecordForm({ fields, initial = {}, onSubmit, onCancel, s
         if (one) data.unshift(one)
       }
       setRefs((r) => ({ ...r, [f.name]: data }))
+      // A recruiter can only see themselves, so their own name is the one answer: fill it in
+      if (f.ref.table === 'bt_recruiters' && data.length === 1) setForm((prev) => (prev[f.name] ? prev : { ...prev, [f.name]: data[0].id }))
     })
     // fields is static per page
     // eslint-disable-next-line react-hooks/exhaustive-deps

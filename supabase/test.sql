@@ -163,16 +163,51 @@ end $t$;
 
 -- 5. Row security, as a signed-in recruiter (a member, not an admin)
 do $t$
-declare n int;
+declare n int; me uuid; other uuid; other_cand uuid; cog uuid; daniel uuid; mine uuid;
 begin
-  insert into bt_recruiters (name, email) values ('Rls (test)', 'rls.test@example.com');
+  insert into bt_recruiters (name, email) values ('Rls (test)', 'rls.test@example.com') returning id into me;
   insert into auth.users (id, email, email_confirmed_at) values ('00000000-0000-0000-0000-0000000000cc', 'rls.test@example.com', now());
+  select id into other from bt_recruiters where email = 'anshuman.test@example.com';
+  select id into other_cand from bt_candidates where recruiter_id = other limit 1;   -- Kavya, reassigned to Anshuman
+  select id into cog from bt_companies where name = 'Cognizant (test)';
+  select id into daniel from bt_vendor_contacts where email = 'daniel.test@example.com';
+  -- dashboard for one recruiter (as an admin picks one): Abdul's submission yesterday, none for Anshuman
+  assert (bt_dashboard(current_date - 1, current_date - 1, other) -> 'days' -> 0 ->> 'submissions')::int = 0, 'dashboard: Anshuman should have no submissions';
   perform set_config('request.jwt.claims', '{"sub": "00000000-0000-0000-0000-0000000000cc"}', true);
   set local role authenticated;
   assert (select bt_is_member()), 'rls: the recruiter should be a member';
   assert not (select bt_is_admin()), 'rls: the recruiter should not be an admin';
   select count(*) into n from bt_recruiters;
-  assert n >= 1, 'rls: members should read the team list';
+  assert n = 1, 'rls: a recruiter should see only their own recruiter row, saw ' || n;
+  -- another recruiter's candidates, submissions, interviews and follow-ups stay invisible
+  assert not exists (select 1 from bt_candidates), 'rls: a recruiter saw another recruiter''s candidates';
+  assert not exists (select 1 from bt_submissions), 'rls: a recruiter saw another recruiter''s submissions';
+  assert not exists (select 1 from bt_interviews), 'rls: a recruiter saw another recruiter''s interviews';
+  assert not exists (select 1 from bt_followup_log), 'rls: a recruiter saw another recruiter''s follow-ups';
+  assert not exists (select 1 from bt_followups_due), 'rls: a recruiter saw another recruiter''s due follow-ups';
+  assert (select coalesce(sum(submissions), 0) from bt_recruiter_activity(current_date - 30, current_date)) = 0, 'rls: activity counted someone else''s work';
+  assert (bt_dashboard(current_date - 1, current_date - 1) -> 'days' -> 0 ->> 'submissions')::int = 0, 'rls: dashboard counted someone else''s submission';
+  -- nor can they be changed, or new ones made in another recruiter's name
+  update bt_candidates set name = 'Hijacked' where id = other_cand;
+  get diagnostics n = row_count;
+  assert n = 0, 'rls: a recruiter changed another recruiter''s candidate';
+  delete from bt_candidates where id = other_cand;
+  get diagnostics n = row_count;
+  assert n = 0, 'rls: a recruiter deleted another recruiter''s candidate';
+  begin
+    insert into bt_candidates (name, recruiter_id) values ('Planted (test)', other);
+    assert false, 'rls: a recruiter added a candidate for someone else';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into bt_submissions (recruiter_id, candidate_id, company_id, vendor_contact_id, rate) values (me, other_cand, cog, daniel, '$1/hr');
+    assert false, 'rls: a recruiter submitted another recruiter''s candidate';
+  exception when insufficient_privilege then null;
+  end;
+  -- their own work is theirs to add and see
+  insert into bt_candidates (name, recruiter_id) values ('Mine (test)', me) returning id into mine;
+  insert into bt_submissions (recruiter_id, candidate_id, company_id, vendor_contact_id, rate) values (me, mine, cog, daniel, '$70/hr');
+  assert (select count(*) from bt_submissions) = 1, 'rls: a recruiter should see their own submission';
   begin
     insert into bt_admins (email) values ('rls.test@example.com');
     assert false, 'rls: a member made themselves admin';
