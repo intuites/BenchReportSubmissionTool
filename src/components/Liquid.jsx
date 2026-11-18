@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 
 // Where the [data-active="true"] child sits inside a positioned container,
 // as distances from each edge (so each edge can move on its own timing).
@@ -27,142 +27,32 @@ export function useActiveRect(ref, key) {
   return rect
 }
 
-// The selection lens: one glass pill. On each axis its leading edge reaches the new item
-// first and its trailing edge follows, so it stretches toward where you went and then
-// draws in, like liquid. (Timing per edge is in styles.css.)
-// The hover lenses in menus, lists and the calendar ('pick', 'bad') are a drop of water instead.
+// The selection highlight: it slides quickly and evenly to the item you point at
 export function Liquid({ rect, tone = 'accent' }) {
-  const prev = useRef(null)
-  const dir = useRef({ y: 'down', x: 'right' })
-  const p = prev.current
-  if (rect && p) {
-    if (rect.top !== p.top) dir.current = { ...dir.current, y: rect.top > p.top ? 'down' : 'up' }
-    if (rect.left !== p.left) dir.current = { ...dir.current, x: rect.left > p.left ? 'right' : 'left' }
-  }
-  useEffect(() => { prev.current = rect })
-  if (tone === 'pick' || tone === 'bad') return <Drop rect={rect} tone={tone} />
   if (!rect) return null
-  return <span className={`lens lens--${tone}`} data-dir={dir.current.y === 'down' || dir.current.x === 'right' ? 'fwd' : 'back'} data-y={dir.current.y} data-x={dir.current.x} style={rect} aria-hidden />
+  return <span className={`lens lens--${tone}`} style={rect} aria-hidden />
 }
 
-// A drop of water that follows the pointer. Each edge is a spring, so a fast sweep never stops
-// and starts again on every item (as CSS transitions do): the edge moving toward the pointer is
-// stiff and gets there almost at once, the edge behind is soft and follows, so the drop stretches
-// over everything it passed. Stretched, it thins across and rounds off into a pill, and glows a
-// little with the flow; arriving, its soft edge overshoots and wobbles before it settles.
-const LEAD = [900, 0.85] // stiffness, damping ratio
-const TRAIL = [130, 0.74]
-const EDGES = ['x1', 'x2', 'y1', 'y2']
-// Only the app's own Reduce motion switch (Appearance) stills the drop; it is what people asked for, so the
-// computer's animation setting alone does not turn it into a jump
+// Only the app's own Reduce motion switch (Appearance) stills the burst and the pet; the computer's
+// animation setting alone does not
 const reducedNow = () => document.documentElement.dataset.motion === 'reduced'
 
-function Drop({ rect, tone }) {
-  const el = useRef(null)
-  const state = useRef(null) // where each edge is now, and how fast it moves
-  const raf = useRef(0)
-  const radius = useRef(8)
-
-  useLayoutEffect(() => {
-    const node = el.current
-    if (!node || !rect) return
-    const box = node.offsetParent
-    if (!box) return
-    // --drop-pad lets a drop wrap its item a little (the calendar's days)
-    const pad = parseFloat(getComputedStyle(node).getPropertyValue('--drop-pad')) || 0
-    const t = { x1: rect.left - pad, x2: box.clientWidth - rect.right + pad, y1: rect.top - pad, y2: box.clientHeight - rect.bottom + pad }
-    const cur = state.current
-    // a new drop (just opened, or back after no item was under it) appears in place
-    if (!cur || cur.node !== node || reducedNow()) {
-      radius.current = parseFloat(getComputedStyle(node).borderTopLeftRadius) || 8
-      state.current = { node, ...t, v: { x1: 0, x2: 0, y1: 0, y2: 0 } }
-      draw(node, state.current, t, radius.current)
-      return
-    }
-    // the edges on the side it is heading to lead; the others trail
-    const dx = t.x1 + t.x2 - cur.x1 - cur.x2, dy = t.y1 + t.y2 - cur.y1 - cur.y2
-    const lead = { x1: dx < 0, x2: dx > 0, y1: dy < 0, y2: dy > 0 }
-    cancelAnimationFrame(raf.current)
-    if (!node.hasAttribute('data-moving')) {
-      node.setAttribute('data-moving', '')
-      node.dispatchEvent(new CustomEvent('liquidmove', { bubbles: true })) // glass.js rests its lens meanwhile
-    }
-    let last = performance.now()
-    const from = { x: cur.x1, y: cur.y1 }
-    const step = (now) => {
-      const dt = Math.min(0.032, (now - last) / 1000)
-      last = now
-      let busy = false
-      for (const k of EDGES) {
-        const [stiff, ratio] = lead[k] ? LEAD : TRAIL
-        const a = stiff * (t[k] - cur[k]) - 2 * Math.sqrt(stiff) * ratio * cur.v[k]
-        cur.v[k] += a * dt
-        cur[k] += cur.v[k] * dt
-        if (Math.abs(t[k] - cur[k]) > 0.25 || Math.abs(cur.v[k]) > 4) busy = true
-      }
-      // moving fast, it sheds little droplets off its tail
-      const vx = (cur.v.x1 + cur.v.x2) / 2, vy = (cur.v.y1 + cur.v.y2) / 2
-      if (Math.hypot(vx, vy) > 480 && now - (cur.sprayed || 0) > 28) { cur.sprayed = now; spray(node, cur, vx, vy) }
-      if (busy) {
-        draw(node, cur, t, radius.current)
-        raf.current = requestAnimationFrame(step)
-      } else {
-        Object.assign(cur, t, { v: { x1: 0, x2: 0, y1: 0, y2: 0 } })
-        draw(node, cur, t, radius.current)
-        node.removeAttribute('data-moving')
-        // landing after a real move sends a soft ring out across the glass, like a drop meeting water
-        if (Math.hypot(t.x1 - from.x, t.y1 - from.y) > 4) ripple(node)
-      }
-    }
-    raf.current = requestAnimationFrame(step)
-  }, [rect?.top, rect?.left, rect?.right, rect?.bottom]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => () => cancelAnimationFrame(raf.current), [])
-  if (!rect) return null
-  return <span ref={el} className={`lens lens--${tone} drop`} aria-hidden />
-}
-
-// A droplet flung off the drop's tail: it flies back the way the drop came, falls and fades.
-// At most a dozen at a time; each removes itself
-function spray(node, s, vx, vy) {
-  const parent = node.parentElement
-  if (!parent || parent.querySelectorAll(':scope > .drop-spray').length > 12) return
-  const across = Math.abs(vx) > Math.abs(vy)
-  const x = across ? (vx > 0 ? s.x1 : s.x2) : s.x1 + (s.x2 - s.x1) * (0.25 + Math.random() * 0.5)
-  const y = across ? s.y1 + (s.y2 - s.y1) * (0.25 + Math.random() * 0.5) : (vy > 0 ? s.y1 : s.y2)
-  const d = document.createElement('i')
-  d.className = 'drop-spray'
-  d.setAttribute('aria-hidden', 'true')
-  const size = 3 + Math.random() * 4
-  const back = 10 + Math.random() * 18
-  Object.assign(d.style, { width: `${size}px`, height: `${size}px`, transform: `translate3d(${(x - size / 2).toFixed(1)}px, ${(y - size / 2).toFixed(1)}px, 0)` })
-  d.style.setProperty('--dx', `${(-Math.sign(vx) * back * (across ? 1 : 0.4) + (Math.random() - 0.5) * 10).toFixed(1)}px`)
-  d.style.setProperty('--dy', `${(-Math.sign(vy) * back * (across ? 0.3 : 1) + 8 + Math.random() * 10).toFixed(1)}px`)
-  parent.insertBefore(d, node)
-  d.addEventListener('animationend', () => d.remove(), { once: true })
-}
-
-// A ring of water spreading from where the drop lands
-function ripple(node) {
-  if (reducedNow() || !node.parentElement) return
-  const r = document.createElement('span')
-  r.className = 'drop-ripple'
-  r.setAttribute('aria-hidden', 'true')
-  for (const k of ['transform', 'width', 'height', 'borderRadius']) r.style[k] = node.style[k]
-  node.parentElement.insertBefore(r, node)
-  r.addEventListener('animationend', () => r.remove(), { once: true })
-}
-
-// Picking an item: the drop bursts. A flash, a ring and a spray of droplets over the item, drawn
-// above the page, so the panel closes at once and the burst plays on over where the item was.
-// A big burst (the party's finale) throws more droplets, further.
-export function burst(el, { beads: count = 10, reach = 1 } = {}) {
+// Picking a date bursts it: a flash, a ring and a spray of droplets over the day, drawn above the
+// page, so the calendar closes at once and the burst plays on over where the day was.
+// A big burst throws more droplets, further.
+export function burst(el, opts) {
   if (!el || reducedNow()) return
   const r = el.getBoundingClientRect()
+  burstAt({ left: r.left, top: r.top, width: r.width, height: r.height }, getComputedStyle(el).borderRadius, opts)
+}
+
+// The same burst at any spot on the screen
+export function burstAt(r, radius = '50%', { beads: count = 10, reach = 1 } = {}) {
+  if (reducedNow()) return
   const b = document.createElement('div')
   b.className = 'drop-burst'
   b.setAttribute('aria-hidden', 'true')
-  Object.assign(b.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, borderRadius: getComputedStyle(el).borderRadius })
+  Object.assign(b.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, borderRadius: radius })
   const beads = Array.from({ length: count }, (_, i) => {
     const a = (i / count) * Math.PI * 2 + (i % 2) * 0.25
     const d = (Math.max(r.width, r.height) / 2 + 10 + (i % 3) * 8) * reach
@@ -171,23 +61,4 @@ export function burst(el, { beads: count = 10, reach = 1 } = {}) {
   b.innerHTML = `<i class="flash"></i><i class="ring"></i>${beads}`
   document.body.appendChild(b)
   setTimeout(() => b.remove(), 760)
-}
-
-// Writes the drop's shape: its box, thinned across the way it stretches (a drop keeps its volume),
-// rounder the more it stretches, and a glow (its own layer, styles.css) that fades up with the flow
-function draw(node, s, t, r0) {
-  const w = Math.max(1, s.x2 - s.x1), h = Math.max(1, s.y2 - s.y1)
-  const tw = Math.max(1, t.x2 - t.x1), th = Math.max(1, t.y2 - t.y1)
-  const sx = w / tw, sy = h / th
-  const pull = Math.min(1, Math.max(0, Math.max(sx, sy) - 1)) // 0 at rest, 1 when stretched to double
-  // thin across the stretch, at most a fifth, about the drop's middle
-  const thinH = sy < sx ? h * Math.min(0.2, (sx - 1) * 0.12) : 0
-  const thinW = sx < sy ? w * Math.min(0.2, (sy - 1) * 0.12) : 0
-  const W = w - thinW, H = h - thinH
-  const st = node.style
-  st.transform = `translate3d(${(s.x1 + thinW / 2).toFixed(2)}px, ${(s.y1 + thinH / 2).toFixed(2)}px, 0)`
-  st.width = `${W.toFixed(2)}px`
-  st.height = `${H.toFixed(2)}px`
-  st.borderRadius = `${(r0 + (Math.min(W, H) / 2 - r0) * Math.min(1, pull * 1.6)).toFixed(2)}px`
-  st.setProperty('--flow', pull.toFixed(3))
 }

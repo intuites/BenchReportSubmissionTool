@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
 import { floatStyle, useFloating, useGlass } from '../lib/glass'
-import { Liquid, burst, useActiveRect } from './Liquid'
+import { Liquid, useActiveRect } from './Liquid'
 
 const OPEN_KEYS = [' ', 'Enter', 'ArrowDown', 'ArrowUp', 'F4'] // plain or with Alt, as the system popup opens
 
@@ -42,8 +42,6 @@ export default function Select({ children, className = '', ...props }) {
       sel.current.value = o.value
       sel.current.dispatchEvent(new Event('change', { bubbles: true }))
     }
-    // the drop bursts on the chosen option as the list closes
-    burst(list.current?.querySelector(`[id="${optId(i)}"]`))
     close()
   }
   // the next enabled option from i in direction d, staying put at the ends

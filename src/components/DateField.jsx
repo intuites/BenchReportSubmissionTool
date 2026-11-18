@@ -4,7 +4,7 @@ import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { chromium, floatStyle, useFloating, useGlass } from '../lib/glass'
 import { iso, today } from '../lib/period'
 import { Liquid, burst, useActiveRect } from './Liquid'
-import DropParty from './DropParty'
+import DropPet from './DropPet'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const MONTHS = Array.from({ length: 12 }, (_, m) => new Date(2026, m, 1).toLocaleDateString('en-US', { month: 'long' }))
@@ -90,28 +90,39 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
   const titleId = useId()
   const body = useRef(null)
   const [hot, setHot] = useState(null) // the day under the mouse; the liquid lens follows it, else rests on the cursor
-  // the drop's home is today: it starts there, flows out to the day you point at and back when you leave.
+  // the highlight's home is today: it starts there, moves to the day you point at and back when you leave.
   // An arrow key takes it to the keyboard's day instead
   const [away, setAway] = useState(true)
-  // rest on one day for seven seconds and the drop throws a little party (DropParty); meanwhile the big
-  // drop hops from day to day. Not with Reduce motion on
+  // press and hold a mouse button (left or right) on one day for thirty seconds and the drop comes alive as a little pet
+  // that hops round the days and goes home to today (DropPet). Hovering alone never starts it; letting go
+  // or sliding off the day before then calls it off. Not with Reduce motion on
   const [party, setParty] = useState(null)
-  const [dance, setDance] = useState(null)
-  const [charge, setCharge] = useState(0) // from 4 s the drop trembles (1), faster from 5.5 s (2): something is coming
-  useEffect(() => {
+  const [charge, setCharge] = useState(0) // from 27 s the highlight trembles (1), faster from 28.5 s (2): something is coming
+  const hold = useRef({ timers: [], since: 0, swallow: false })
+  const stopHold = () => {
+    const h = hold.current
+    h.timers.forEach(clearTimeout)
+    h.timers = []
+    // held past a moment, the release is the end of a hold, not a click: it does not pick the day
+    if (h.since && performance.now() - h.since > 500) h.swallow = true
+    h.since = 0
     setCharge(0)
-    if (!hot || party || document.documentElement.dataset.motion === 'reduced') return
-    const ids = [setTimeout(() => setCharge(1), 4000), setTimeout(() => setCharge(2), 5500), setTimeout(() => { setCharge(0); setParty(hot) }, 7000)]
-    return () => ids.forEach(clearTimeout)
-  }, [hot, party])
-  useEffect(() => {
-    if (!party) return setDance(null)
-    const days = [...(body.current?.querySelectorAll('.cal-day:not(.disabled):not(.out)') ?? [])].map((b) => b.dataset.day)
-    const hop = setInterval(() => setDance(days[Math.floor(Math.random() * days.length)]), 300)
-    const stop = setTimeout(() => { clearInterval(hop); setDance(null) }, 4200)
-    return () => { clearInterval(hop); clearTimeout(stop) }
-  }, [party])
-  const lensOn = dance || hot || (away && now.slice(0, 7) === cursor.slice(0, 7) ? now : cursor)
+  }
+  const startHold = (e, s) => {
+    // the left or the right button, held
+    if ((e.button !== 0 && e.button !== 2) || off(s) || party || document.documentElement.dataset.motion === 'reduced') return
+    stopHold()
+    const h = hold.current
+    h.swallow = false
+    h.since = performance.now()
+    h.timers = [
+      setTimeout(() => setCharge(1), 27000),
+      setTimeout(() => setCharge(2), 28500),
+      setTimeout(() => { setCharge(0); setParty(s) }, 30000),
+    ]
+  }
+  useEffect(() => () => hold.current.timers.forEach(clearTimeout), [])
+  const lensOn = hot || (away && now.slice(0, 7) === cursor.slice(0, 7) ? now : cursor)
   const lens = useActiveRect(body, mode === 'days' ? lensOn : '')
   const pos = useFloating(true, () => onClose(false), anchor, panel, { align: 'start', gap: 6 })
   useGlass(panel, !!pos)
@@ -134,7 +145,7 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
   }, [cursor, mode, !!pos, req])
 
   const off = (s) => (min && s < min) || (max && s > max)
-  // picking a day bursts its drop as the calendar closes on the new date
+  // picking a day bursts it as the calendar closes on the new date
   const pickDay = (s) => {
     if (off(s)) return
     burst(panel.current?.querySelector(`[data-day="${s}"]`))
@@ -198,9 +209,9 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
       </header>
 
       {mode === 'days' && (
-        <div className="cal-body" ref={body} data-charge={charge || undefined} onMouseLeave={() => { setHot(null); setAway(true) }}>
+        <div className="cal-body" ref={body} data-charge={charge || undefined} data-home={lensOn === now || undefined} data-party={party ? '' : undefined} onMouseLeave={() => { setHot(null); setAway(true) }}>
         <Liquid rect={lens} tone="pick" />
-        {party && <DropParty box={body} day={party} onDone={() => setParty(null)} />}
+        {party && <DropPet box={body} day={party} home={now.slice(0, 7) === cursor.slice(0, 7) ? now : party} onDone={() => setParty(null)} />}
         <table className="cal-grid" role="grid" aria-label={`${MONTHS[m - 1]} ${y}`} onKeyDown={onGridKey}>
           <thead>
             <tr>{DAYS.map((d) => <th key={d} scope="col" abbr={d}>{d.slice(0, 2)}</th>)}</tr>
@@ -226,7 +237,12 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
                         aria-disabled={off(s) || undefined}
                         data-active={s === lensOn}
                         onMouseEnter={() => setHot(off(s) ? null : s)}
-                        onClick={() => pickDay(s)}
+                        onClick={() => { if (hold.current.swallow) { hold.current.swallow = false; return } pickDay(s) }}
+                        onPointerDown={(e) => startHold(e, s)}
+                        onPointerUp={stopHold}
+                        onPointerLeave={() => hold.current.since && stopHold()}
+                        onPointerCancel={stopHold}
+                        onContextMenu={(e) => e.preventDefault()} // a right-button hold must not open the browser's menu (Windows opens it on release)
                       >
                         {+s.slice(8)}
                       </button>

@@ -795,7 +795,7 @@ input[type='date']:hover::-webkit-calendar-picker-indicator, input[type='date']:
   background: none; color: var(--ink); font: 500 14px var(--font-body); text-align: left; cursor: pointer;
   transition: background-color var(--m-out) var(--m-ease), border-color var(--m-out) var(--m-ease), transform var(--m-press) var(--m-ease);
 }
-/* the liquid drop is the hover: tiles sit above it, family headings above both as they scroll */
+/* the highlight is the hover: tiles sit above it, family headings above both as they scroll */
 .colour-tile { position: relative; z-index: 1; }
 .colour-tile.active { background: none; }
 .colour-tile:focus-visible { outline-offset: 0; }
@@ -1023,7 +1023,7 @@ input[type='date']:hover::-webkit-calendar-picker-indicator, input[type='date']:
   transition: background-color var(--m-out) var(--m-ease);
 }
 .select-option.active { background: var(--accent-soft); transition-duration: var(--m-in); }
-.select-list:focus-visible .select-option.active { box-shadow: inset 0 0 0 2px var(--accent-mark); }
+.select-list:focus-visible .select-option.active { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-mark) 45%, transparent); } /* keyboard: a quiet ring on the tint */
 .select-option[aria-selected='true'] { font-weight: 500; }
 .select-option.placeholder { color: var(--ink-3); }
 .select-option[aria-disabled] { opacity: 0.45; cursor: default; }
@@ -1107,100 +1107,58 @@ td:last-child > .cal-day.in-range, .cal-day.range-end { border-top-right-radius:
 .cal-foot .btn:hover { transform: none; }
 
 /* =====================================================================
-   Liquid: one highlight flows between the options of every dropdown,
-   menu and calendar (Liquid.jsx). On each axis its leading edge leaves
-   first and springs past a little, the trailing edge follows, so it
-   stretches toward where you point and draws back in. Its colour is
-   the person's accent, in light and dark. Items rise in one by one.
+   One highlight slides between the options of every dropdown, menu and
+   calendar (Liquid.jsx): a flat tint of the person's accent that moves
+   quickly and evenly to what you point at, as a well-made menu does.
+   Items rise in one by one as a panel opens.
    ===================================================================== */
 .select-scroll, .cal-body { position: relative; }
 .select-option, .menu-list--floating button, .profile-menu [role='menuitem'], .cal-day { position: relative; z-index: 1; }
 .lens--pick, .lens--bad {
   border-radius: var(--r-ctl);
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0) 70%), var(--accent-soft);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), inset 0 0 0 1px color-mix(in srgb, var(--accent-mark) 22%, transparent), 0 6px 14px -8px color-mix(in srgb, var(--accent-mark) 60%, transparent);
-  transition: background-color var(--m-slide) var(--m-ease);
+  background: var(--accent-soft);
+  transition: top 140ms var(--m-ease), bottom 140ms var(--m-ease), left 140ms var(--m-ease), right 140ms var(--m-ease), background-color var(--m-slide) var(--m-ease);
 }
-/* the drop (Liquid.jsx): its box, roundness and glow are written each frame by its springs. It enters
-   on opacity and the scale property, so the transform stays free for where it is */
-.lens.drop {
-  top: 0; left: 0; right: auto; bottom: auto;
-  will-change: transform;
-  animation: drop-in 300ms cubic-bezier(0.34, 1.32, 0.5, 1) both;
+.lens--bad { background: var(--bad-soft); }
+/* the day under the highlight reads in the accent; today's solid tile keeps its own colours */
+.cal-day[data-active='true']:not(.disabled):not(.selected) { color: var(--accent-ink); font-weight: 600; }
+/* while the pet plays the highlight steps aside */
+.cal-body[data-party] .lens { opacity: 0; transition: opacity 200ms; }
+/* the pet (DropPet.jsx): a glossy drop of the accent with eyes, a smile and a little arm */
+.pet { position: absolute; top: 0; left: 0; z-index: 4; width: 34px; height: 34px; pointer-events: none; transform-origin: 50% 80%; will-change: transform; --look: 0; }
+.pet-body {
+  position: absolute; inset: 0; display: block;
+  border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%;
+  background: radial-gradient(circle at 34% 26%, rgb(255 255 255 / 0.85) 0 9%, color-mix(in srgb, var(--accent-mark) 65%, #fff) 26%, var(--accent) 70%);
+  box-shadow: inset 0 -3px 5px rgb(0 0 0 / 0.18), 0 6px 12px -5px color-mix(in srgb, var(--accent-mark) 70%, transparent);
 }
-/* as it flows it brightens and glows, then calms as it lands */
-.lens--pick.drop { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), inset 0 0 0 1px color-mix(in srgb, var(--accent-mark) 28%, transparent), 0 6px 14px -8px color-mix(in srgb, var(--accent-mark) 60%, transparent); }
-:root[data-theme='dark'] .lens--pick.drop { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), inset 0 0 0 1px color-mix(in srgb, var(--accent-mark) 40%, transparent), 0 8px 18px -10px color-mix(in srgb, var(--accent-mark) 70%, transparent); }
-/* the glow of the flow: painted once on its own layer, only its opacity follows --flow, so a moving
-   drop is never repainted for it */
-.lens.drop::after {
-  content: ''; position: absolute; inset: -5px; border-radius: inherit; pointer-events: none;
-  box-shadow: 0 0 22px 3px color-mix(in srgb, var(--accent-mark) 65%, transparent);
-  opacity: var(--flow, 0); will-change: opacity;
+.pet-shine { position: absolute; top: 5px; left: 7px; width: 8px; height: 5px; border-radius: 50%; background: rgb(255 255 255 / 0.75); rotate: -25deg; }
+/* its face: an emoji that changes with each act (DropPet.jsx), set a touch low on the drop */
+.pet-face { position: absolute; inset: 3px 0 0; display: grid; place-items: center; font-size: 19px; line-height: 1; font-style: normal; }
+/* a little emoji floating up from the pet at each act */
+.pet-pop {
+  position: absolute; left: 50%; top: -6px; margin-left: -10px; width: 20px; text-align: center; font-size: 17px; line-height: 1; font-style: normal;
+  animation: pet-pop 900ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
-@keyframes drop-in { from { opacity: 0; scale: 0.85 0.6; } }
-/* the drop as liquid glass: a clear tint of the accent, light caught bright on its upper curve,
-   a glow pooled at its foot where the light comes through, and a fine wet rim */
-.lens--pick.drop {
-  background:
-    radial-gradient(120% 75% at 30% 10%, rgb(255 255 255 / 0.6), rgb(255 255 255 / 0) 55%),
-    radial-gradient(90% 60% at 50% 115%, color-mix(in srgb, var(--accent-mark) 42%, transparent), transparent 70%),
-    color-mix(in srgb, var(--accent-mark) 16%, transparent);
+@keyframes pet-pop { 0% { translate: 0 6px; scale: 0.4; opacity: 0; } 25% { scale: 1.25; opacity: 1; } 100% { translate: 8px -34px; scale: 1; opacity: 0; } }
+.pet-arm { position: absolute; right: -6px; top: 14px; width: 10px; height: 7px; border-radius: 50%; background: var(--accent); transform-origin: 0 50%; opacity: 0; }
+.pet[data-act='wave'] .pet-arm, .pet[data-act='bye'] .pet-arm { opacity: 1; animation: pet-wave 260ms ease-in-out infinite alternate; }
+@keyframes pet-wave { from { rotate: -10deg; } to { rotate: -60deg; } }
+/* where it lands a ring spreads */
+.pet-ripple {
+  position: absolute; top: 0; left: 0; z-index: 3; width: 44px; height: 16px; border-radius: 50%; pointer-events: none;
+  border: 2px solid color-mix(in srgb, var(--accent-mark) 60%, transparent);
+  animation: pet-ripple 520ms ease-out forwards;
 }
-:root[data-theme='dark'] .lens--pick.drop {
-  background:
-    radial-gradient(120% 75% at 30% 10%, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0) 55%),
-    radial-gradient(90% 60% at 50% 115%, color-mix(in srgb, var(--accent-mark) 50%, transparent), transparent 70%),
-    color-mix(in srgb, var(--accent-mark) 22%, transparent);
-}
-/* In the calendar the drop is a solid bubble of the accent, lying under the days: the day it is on
-   turns white on it. Resting on today it is one with today's tile, so pointing at another day you see
-   it pull out of today and flow there, and flow back into today when you leave. A soft light on its top
-   curve and a glow that grows as it flows keep it liquid. */
-.cal-body .lens.drop {
-  border-radius: var(--r-ctl);
-  background:
-    radial-gradient(120% 60% at 35% 0%, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0) 100%),
-    var(--accent);
-}
-.cal-body .lens--pick.drop { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3), 0 6px 12px -6px color-mix(in srgb, var(--accent-mark) 55%, transparent); }
-:root[data-theme='dark'] .cal-body .lens.drop { background: radial-gradient(120% 60% at 35% 0%, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0) 100%), var(--accent); }
-/* the day the bubble is on reads white on it */
-.cal-day[data-active='true']:not(.disabled) { color: var(--on-accent); font-weight: 600; transition-duration: 120ms; }
-.cal-day.out[data-active='true'] { color: var(--on-accent); }
-/* the seven-second party (DropParty.jsx): little glossy drops of the accent bouncing over the days */
-.drop-party { position: absolute; inset: 0; z-index: 3; pointer-events: none; contain: layout style; }
-.drop-party i:not([data-on]) { visibility: hidden; }
-/* the number under the drop gives a little jelly bounce as the drop arrives */
-.cal-day[data-active='true']:not(.disabled) { animation: day-pop 380ms cubic-bezier(0.34, 1.5, 0.5, 1); }
-@keyframes day-pop { 0% { scale: 0.86; } 55% { scale: 1.16; } 100% { scale: 1; } }
+@keyframes pet-ripple { from { opacity: 0.9; scale: 0.4; } to { opacity: 0; scale: 1.5; } }
 /* a day a party bubble splashes jumps */
 .cal-day.splash { animation: day-splash 460ms cubic-bezier(0.3, 1.6, 0.5, 1); }
 @keyframes day-splash { 0% { translate: 0 0; scale: 1; } 30% { translate: 0 -7px; scale: 1.22 0.86; } 60% { translate: 0 1px; scale: 0.94 1.06; } 100% { translate: 0 0; scale: 1; } }
-/* charging: held still for 4 s the drop starts to tremble, faster from 5.5 s, until the party at 7 */
-/* (listed after its entrance, so the entrance never replays when the trembling stops) */
-.cal-body[data-charge='1'] .lens.drop { animation: drop-in 300ms cubic-bezier(0.34, 1.32, 0.5, 1) both, drop-charge 360ms ease-in-out infinite; }
-.cal-body[data-charge='2'] .lens.drop { animation: drop-in 300ms cubic-bezier(0.34, 1.32, 0.5, 1) both, drop-charge 170ms ease-in-out infinite; }
+/* charging: the mouse held down on a day for 27 s, the drop starts to tremble, faster from 28.5 s, until the pet comes out at 30 */
+/*  */
+.cal-body[data-charge='1'] .lens { animation: drop-charge 360ms ease-in-out infinite; }
+.cal-body[data-charge='2'] .lens { animation: drop-charge 170ms ease-in-out infinite; }
 @keyframes drop-charge { 0%, 100% { scale: 1; rotate: 0deg; } 25% { scale: 1.07 0.94; rotate: -2.5deg; } 75% { scale: 0.95 1.06; rotate: 2.5deg; } }
-/* droplets flung off a fast drop's tail (Liquid.jsx spray) */
-.drop-spray {
-  position: absolute; top: 0; left: 0; z-index: 0; display: block; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.85) 0 18%, var(--accent-mark) 70%);
-  animation: drop-spray 520ms cubic-bezier(0.2, 0.6, 0.4, 1) forwards;
-}
-@keyframes drop-spray { from { translate: 0 0; scale: 1; opacity: 0.95; } to { translate: var(--dx) var(--dy); scale: 0.3; opacity: 0; } }
-.drop-party i {
-  position: absolute; top: 0; left: 0; display: block; border-radius: 50%; will-change: transform;
-  background: radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.9) 0 12%, color-mix(in srgb, var(--accent-mark) 70%, #fff) 30%, var(--accent) 74%);
-  box-shadow: 0 5px 12px -4px color-mix(in srgb, var(--accent-mark) 75%, transparent), inset 0 -2px 3px rgb(0 0 0 / 0.16);
-}
-/* where it lands, a ring spreads and fades (scale only, the transform is its place) */
-.drop-ripple {
-  position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none;
-  border: 1.5px solid color-mix(in srgb, var(--accent-mark) 55%, transparent);
-  animation: drop-ripple 560ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
-}
-@keyframes drop-ripple { from { opacity: 0.9; scale: 1; } to { opacity: 0; scale: 1.32 1.45; } }
 /* picking: the drop bursts. A flash, a ring thrown outward and a spray of droplets */
 .drop-burst { position: fixed; z-index: 300; pointer-events: none; }
 .drop-burst i { position: absolute; display: block; }
@@ -1223,10 +1181,7 @@ td:last-child > .cal-day.in-range, .cal-day.range-end { border-top-right-radius:
   65% { opacity: 1; }
   100% { translate: var(--dx) calc(var(--dy) + 6px); scale: 0.15; opacity: 0; }
 }
-:root[data-motion='reduced'] .drop-ripple, :root[data-motion='reduced'] .drop-burst { display: none; }
-.lens--bad { background: linear-gradient(180deg, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0) 70%), var(--bad-soft); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6), inset 0 0 0 1px color-mix(in srgb, var(--bad) 22%, transparent); }
-:root[data-theme='dark'] .lens--pick { background: linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0) 70%), var(--accent-soft); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), inset 0 0 0 1px color-mix(in srgb, var(--accent-mark) 35%, transparent), 0 8px 18px -10px color-mix(in srgb, var(--accent-mark) 70%, transparent); }
-:root[data-theme='dark'] .lens--bad { background: linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0) 70%), var(--bad-soft); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12); }
+:root[data-motion='reduced'] .drop-burst { display: none; }
 /* the lens is the hover now: no second background under it */
 .select-option.active, .select-option:active,
 .menu-list--floating button:hover, .menu-list--floating button:focus-visible,
@@ -1240,7 +1195,8 @@ td:last-child > .cal-day.in-range, .cal-day.range-end { border-top-right-radius:
 .select-option:active, .menu-list--floating button:active, .profile-menu [role='menuitem']:active { transform: scale(0.985); }
 /* the options rise in one after another as the drop opens */
 .select-option, .menu-list--floating button, .profile-menu [role='menuitem'] { animation: liquid-item 340ms var(--m-ease-enter) both; animation-delay: calc(80ms + var(--i, 0) * 24ms); }
-.cal-body tbody tr { animation: liquid-item 340ms var(--m-ease-enter) both; }
+/* backwards, not both: once a row has risen it lets go of its animation, so it does not keep a layer of its own */
+.cal-body tbody tr { animation: liquid-item 340ms var(--m-ease-enter) backwards; }
 .cal-body tbody tr:nth-child(2) { animation-delay: 30ms; } .cal-body tbody tr:nth-child(3) { animation-delay: 60ms; }
 .cal-body tbody tr:nth-child(4) { animation-delay: 90ms; } .cal-body tbody tr:nth-child(5) { animation-delay: 120ms; } .cal-body tbody tr:nth-child(6) { animation-delay: 150ms; }
 @keyframes liquid-item { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
@@ -1261,17 +1217,17 @@ td:last-child > .cal-day.in-range, .cal-day.range-end { border-top-right-radius:
 :root[data-motion='reduced'] *, :root[data-motion='reduced'] *::before, :root[data-motion='reduced'] *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-  /* the liquid drop, its ripple and its burst stay: only the Appearance switch stills them */
-  .lens.drop { animation-duration: 300ms !important; }
-  .drop-ripple { animation-duration: 560ms !important; }
+  /* the date burst and the pet stay: only the Appearance switch stills them */
   .drop-burst .flash { animation-duration: 420ms !important; }
   .drop-burst .ring { animation-duration: 620ms !important; }
   .drop-burst .bead { animation-duration: 680ms !important; }
-  .drop-spray { animation-duration: 520ms !important; }
   .cal-day[data-active='true']:not(.disabled) { animation-duration: 380ms !important; }
   .cal-day.splash { animation-duration: 460ms !important; }
-  .cal-body[data-charge='1'] .lens.drop { animation-duration: 300ms, 360ms !important; animation-iteration-count: 1, infinite !important; }
-  .cal-body[data-charge='2'] .lens.drop { animation-duration: 300ms, 170ms !important; animation-iteration-count: 1, infinite !important; }
+  .pet-pop { animation-duration: 900ms !important; }
+  .pet[data-act='wave'] .pet-arm, .pet[data-act='bye'] .pet-arm { animation-duration: 260ms !important; animation-iteration-count: infinite !important; }
+  .pet-ripple { animation-duration: 520ms !important; }
+  .cal-body[data-charge='1'] .lens { animation-duration: 360ms !important; animation-iteration-count: infinite !important; }
+  .cal-body[data-charge='2'] .lens { animation-duration: 170ms !important; animation-iteration-count: infinite !important; }
 }
 
 /* =====================================================================

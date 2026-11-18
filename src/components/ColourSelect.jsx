@@ -24,7 +24,7 @@ export default function ColourSelect({ groups, value, onChange, label = 'Accent 
   const all = useMemo(() => groups.flatMap(([family, items]) => items.map(([name, c]) => ({ name, c, family }))), [groups])
   const current = all.find((o) => o.c.toLowerCase() === value.toLowerCase()) ?? { name: 'Your earlier colour', c: value, family: 'Custom' }
   const shown = all.filter((o) => !q || `${o.name} ${o.family}`.toLowerCase().includes(q.trim().toLowerCase()))
-  // the liquid drop, as in the dropdowns: it follows the pointer and flows home to your colour when it leaves
+  // the highlight, as in the dropdowns: it follows the pointer and goes back to your colour when it leaves
   const lens = useActiveRect(grid, open && pos ? `${active}|${q}` : '')
   const home = () => { const n = shown.findIndex((o) => o.c === current.c); if (n >= 0) setActive(n) }
 
