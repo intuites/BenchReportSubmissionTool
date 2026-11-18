@@ -51,9 +51,11 @@ export function Liquid({ rect, tone = 'accent' }) {
 // over everything it passed. Stretched, it thins across and rounds off into a pill, and glows a
 // little with the flow; arriving, its soft edge overshoots and wobbles before it settles.
 const LEAD = [900, 0.85] // stiffness, damping ratio
-const TRAIL = [72, 0.76]
+const TRAIL = [130, 0.74]
 const EDGES = ['x1', 'x2', 'y1', 'y2']
-const reducedNow = () => document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches
+// Only the app's own Reduce motion switch (Appearance) stills the drop; it is what people asked for, so the
+// computer's animation setting alone does not turn it into a jump
+const reducedNow = () => document.documentElement.dataset.motion === 'reduced'
 
 function Drop({ rect, tone }) {
   const el = useRef(null)
@@ -129,9 +131,9 @@ function ripple(node) {
 }
 
 // Picking an item: the drop bursts. A flash, a ring and a spray of droplets over the item, drawn
-// above the page so it can finish while the panel closes. Returns how long to wait before closing.
+// above the page, so the panel closes at once and the burst plays on over where the item was.
 export function burst(el) {
-  if (!el || reducedNow()) return 0
+  if (!el || reducedNow()) return
   const r = el.getBoundingClientRect()
   const b = document.createElement('div')
   b.className = 'drop-burst'
@@ -145,7 +147,6 @@ export function burst(el) {
   b.innerHTML = `<i class="flash"></i><i class="ring"></i>${beads}`
   document.body.appendChild(b)
   setTimeout(() => b.remove(), 760)
-  return 220
 }
 
 // Writes the drop's shape: its box, thinned across the way it stretches (a drop keeps its volume),

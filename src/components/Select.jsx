@@ -42,10 +42,9 @@ export default function Select({ children, className = '', ...props }) {
       sel.current.value = o.value
       sel.current.dispatchEvent(new Event('change', { bubbles: true }))
     }
-    // the drop bursts on the chosen option; the value is already set, only the closing waits for it
-    const wait = burst(list.current?.querySelector(`[id="${optId(i)}"]`))
-    if (wait) setTimeout(close, wait)
-    else close()
+    // the drop bursts on the chosen option as the list closes
+    burst(list.current?.querySelector(`[id="${optId(i)}"]`))
+    close()
   }
   // the next enabled option from i in direction d, staying put at the ends
   const step = (i, d) => { for (let j = i + d; j >= 0 && j < options.length; j += d) if (!options[j].disabled) return j; return i }

@@ -115,14 +115,11 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
   }, [cursor, mode, !!pos, req])
 
   const off = (s) => (min && s < min) || (max && s > max)
-  // picking a day bursts its drop, then the calendar closes on the new date
-  const picking = useRef(false)
+  // picking a day bursts its drop as the calendar closes on the new date
   const pickDay = (s) => {
-    if (off(s) || picking.current) return
-    picking.current = true
-    const wait = burst(panel.current?.querySelector(`[data-day="${s}"]`))
-    if (wait) setTimeout(() => onPick(s), wait)
-    else onPick(s)
+    if (off(s)) return
+    burst(panel.current?.querySelector(`[data-day="${s}"]`))
+    onPick(s)
   }
   const go = (s) => { focusNext.current = true; setDay(s) }
   const monthStep = (n) => setDay(addMonths(cursor, n))

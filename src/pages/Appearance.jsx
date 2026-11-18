@@ -113,7 +113,7 @@ export default function Appearance({ admin }) {
           <section className="card pad pref">
             <header><h2>Accessibility</h2><p>Easier reading and calmer movement</p></header>
             <Toggle label="Higher contrast" note="Darker secondary text and stronger lines" checked={prefs.contrast === 'high'} onChange={(on) => set({ contrast: on ? 'high' : 'normal' })} />
-            <Toggle label="Reduce motion" note="No sliding, rolling or fading. Your computer's setting is always respected" checked={prefs.motion === 'reduced'} onChange={(on) => set({ motion: on ? 'reduced' : 'full' })} />
+            <Toggle label="Reduce motion" note="No sliding, rolling or fading, the liquid hover drop included. Your computer's setting is respected too, except for the drop, which only this switch stops" checked={prefs.motion === 'reduced'} onChange={(on) => set({ motion: on ? 'reduced' : 'full' })} />
           </section>
 
           {admin && (
