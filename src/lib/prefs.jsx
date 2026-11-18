@@ -40,15 +40,15 @@ export const RADII = { sharp: 6, crisp: 9, soft: 12, round: 16, pill: 22 }
 // interface size: the whole app scales, so tables, buttons and type stay in proportion
 export const SIZES = { s: 0.92, m: 1, l: 1.08, xl: 1.16 }
 
-export const DEFAULTS = { mode: 'system', accent: '#d0106f', fonts: 'host', radius: 'soft', size: 'm', italic: false, contrast: 'normal', density: 'comfortable', motion: 'full' }
+export const DEFAULTS = { mode: 'system', accent: '#d0106f', fonts: 'host', radius: 'soft', size: 'm', contrast: 'normal', density: 'comfortable', motion: 'full' }
 
 // Unknown or old choices fall back to the defaults
-const sanitize = (p) => ({
+// (italic headings were an option once: an old saved choice is dropped, so text is never slanted)
+const sanitize = ({ italic: _dropped, ...p }) => ({
   ...p,
   fonts: FONTS[p.fonts] ? p.fonts : DEFAULTS.fonts,
   radius: RADII[p.radius] ? p.radius : DEFAULTS.radius,
   size: SIZES[p.size] ? p.size : DEFAULTS.size,
-  italic: p.italic === true,
   contrast: p.contrast === 'high' ? 'high' : 'normal',
 })
 
@@ -66,7 +66,6 @@ function apply(p) {
   root.dataset.density = p.density
   root.dataset.motion = p.motion
   root.dataset.fonts = p.fonts
-  root.dataset.italic = p.italic ? 'on' : 'off'
   root.dataset.contrast = p.contrast
   root.style.setProperty('--accent', t.accent)
   root.style.setProperty('--accent-ink', t.ink)

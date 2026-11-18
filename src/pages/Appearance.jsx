@@ -44,7 +44,6 @@ export default function Appearance({ admin }) {
     return () => link.remove()
   }, [])
 
-  const font = FONTS[prefs.fonts]
 
   return (
     <section className="page">
@@ -79,7 +78,7 @@ export default function Appearance({ admin }) {
                 <button key={id} type="button" className="font-card" aria-pressed={prefs.fonts === id} onClick={() => set({ fonts: id })} style={{ fontFamily: `'${f.name}', system-ui` }}>
                   <span className="aa">Aa <em>Bench 56%</em></span>
                   <span className="font-name">{f.name}</span>
-                  <small>{f.note}{f.italic ? '' : ' · no true italic'}</small>
+                  <small>{f.note}</small>
                 </button>
               ))}
             </div>
@@ -88,12 +87,6 @@ export default function Appearance({ admin }) {
           <section className="card pad pref">
             <header><h2>Text and size</h2><p>Scales the whole interface, so tables and buttons stay in proportion</p></header>
             <Segmented label="Interface size" items={Object.keys(SIZES).map((id) => [id, SIZE_LABELS[id]])} value={prefs.size} onChange={(size) => set({ size })} />
-            <Toggle
-              label="Italic headings"
-              note={font.italic ? `Page titles and figures in ${font.name} Italic` : `${font.name} has no true italic, so headings are slanted`}
-              checked={prefs.italic}
-              onChange={(italic) => set({ italic })}
-            />
           </section>
 
           <section className="card pad pref">
