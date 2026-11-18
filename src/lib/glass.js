@@ -18,8 +18,10 @@ let defs = null
 const RIM = 10, FADE = 24 // px from the edge: the crisp bent rim, then its fade into the frosted core
 
 // R and G carry the x and y shift (128 = none) for a w×h rounded rectangle of radius r;
-// B is the rim weight (255 = the crisp bent backdrop, 0 = the frosted core)
-export function lensData(w, h, r) {
+// B is the rim weight (255 = the crisp bent backdrop, 0 = the frosted core).
+// k scales the rim's distances, for a map built smaller than the panel and stretched to it.
+export function lensData(w, h, r, k = 1) {
+  const bezel = BEZEL * k, rim = RIM * k, fade = FADE * k
   const d = new Uint8ClampedArray(w * h * 4)
   const hw = w / 2, hh = h / 2
   for (let y = 0; y < h; y++) {
@@ -31,61 +33,80 @@ export function lensData(w, h, r) {
       if (qx > 0 && qy > 0) { const l = Math.hypot(qx, qy); t = r - l; nx = (qx / l) * Math.sign(px); ny = (qy / l) * Math.sign(py) }
       else if (qx > qy) { t = r - qx; nx = Math.sign(px) }
       else { t = r - qy; ny = Math.sign(py) }
-      const m = t >= 0 && t < BEZEL ? (1 - t / BEZEL) ** 2 : 0
+      const m = t >= 0 && t < bezel ? (1 - t / bezel) ** 2 : 0
       const i = (y * w + x) * 4
       d[i] = 128 - nx * m * 127
       d[i + 1] = 128 - ny * m * 127
-      const k = Math.min(1, Math.max(0, (FADE - t) / (FADE - RIM)))
-      d[i + 2] = 255 * k * k * (3 - 2 * k)
+      const q = Math.min(1, Math.max(0, (fade - t) / (fade - rim)))
+      d[i + 2] = 255 * q * q * (3 - 2 * q)
       d[i + 3] = 255
     }
   }
   return d
 }
 
+// The map is smooth, so it is built at half the panel's size and stretched to it (a quarter of the
+// pixels to work out), when the browser is idle, and encoded off the main thread to a blob: no frame
+// waits for it. Resolves to the filter's id once its map is ready.
+const SCALE = 0.5
+const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 200 }) : setTimeout(fn, 1))
 function filterFor(w, h, r) {
   const key = `${w}x${h}x${r}`
+  const hit = cache.get(key)
+  if (hit) { cache.delete(key); cache.set(key, hit); return hit.ready }
   const id = `bt-glass-${key}`
-  if (cache.has(key)) { cache.delete(key); cache.set(key, id); return id }
-  if (!defs) {
-    defs = document.createElementNS(NS, 'svg')
-    defs.setAttribute('class', 'glass-defs')
-    defs.setAttribute('aria-hidden', 'true')
-    document.body.appendChild(defs)
-  }
-  const c = document.createElement('canvas')
-  c.width = w; c.height = h
-  c.getContext('2d').putImageData(new ImageData(lensData(w, h, r), w, h), 0, 0)
-  const f = document.createElementNS(NS, 'filter')
-  f.id = id
-  Object.entries({ x: 0, y: 0, width: w, height: h, filterUnits: 'userSpaceOnUse', primitiveUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' }).forEach(([k, v]) => f.setAttribute(k, v))
-  // two layers in one filter: the rim (B) shows the bent backdrop almost sharp, the core a frosted one, so
-  // the bend reads at the edge while the words sit on a quiet ground. A flat map under the image: until
-  // it decodes nothing moves and it is all core.
-  f.innerHTML = `<feFlood flood-color="rgb(128,128,0)" result="flat"/>
-    <feImage href="${c.toDataURL()}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="map"/>
-    <feComposite in="map" in2="flat" operator="over" result="lens"/>
-    <feDisplacementMap in="SourceGraphic" in2="lens" scale="${DEPTH * 2}" xChannelSelector="R" yChannelSelector="G" result="bent"/>
-    <feGaussianBlur in="bent" stdDeviation="0.75" result="rim"/>
-    <feColorMatrix in="lens" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0" result="weight"/>
-    <feComposite in="rim" in2="weight" operator="in" result="rimOnly"/>
-    <feGaussianBlur in="SourceGraphic" stdDeviation="16" edgeMode="duplicate" result="core"/>
-    <feComposite in="rimOnly" in2="core" operator="over"/>`
-  defs.appendChild(f)
-  cache.set(key, id)
+  const entry = { id, url: '', ready: null }
+  entry.ready = new Promise((done) => idle(() => {
+    const mw = Math.max(2, Math.round(w * SCALE)), mh = Math.max(2, Math.round(h * SCALE))
+    const c = document.createElement('canvas')
+    c.width = mw; c.height = mh
+    c.getContext('2d').putImageData(new ImageData(lensData(mw, mh, r * SCALE, SCALE), mw, mh), 0, 0)
+    c.toBlob((blob) => {
+      if (!defs) {
+        defs = document.createElementNS(NS, 'svg')
+        defs.setAttribute('class', 'glass-defs')
+        defs.setAttribute('aria-hidden', 'true')
+        document.body.appendChild(defs)
+      }
+      entry.url = URL.createObjectURL(blob)
+      const f = document.createElementNS(NS, 'filter')
+      f.id = id
+      Object.entries({ x: 0, y: 0, width: w, height: h, filterUnits: 'userSpaceOnUse', primitiveUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' }).forEach(([k, v]) => f.setAttribute(k, v))
+      // two layers in one filter: the rim (B) shows the bent backdrop almost sharp, the core a frosted one, so
+      // the bend reads at the edge while the words sit on a quiet ground. A flat map under the image: until
+      // it decodes nothing moves and it is all core.
+      f.innerHTML = `<feFlood flood-color="rgb(128,128,0)" result="flat"/>
+        <feImage href="${entry.url}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="map"/>
+        <feComposite in="map" in2="flat" operator="over" result="lens"/>
+        <feDisplacementMap in="SourceGraphic" in2="lens" scale="${DEPTH * 2}" xChannelSelector="R" yChannelSelector="G" result="bent"/>
+        <feGaussianBlur in="bent" stdDeviation="0.75" result="rim"/>
+        <feColorMatrix in="lens" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0" result="weight"/>
+        <feComposite in="rim" in2="weight" operator="in" result="rimOnly"/>
+        <feGaussianBlur in="SourceGraphic" stdDeviation="16" edgeMode="duplicate" result="core"/>
+        <feComposite in="rimOnly" in2="core" operator="over"/>`
+      defs.appendChild(f)
+      done(id)
+    }, 'image/png')
+  }))
+  cache.set(key, entry)
   // shortcut: keeps the 24 most recent sizes; a panel whose size changes constantly would churn maps
   if (cache.size > 24) {
-    const old = [...cache].find(([, oldId]) => !inUse.get(oldId))
-    if (old) { cache.delete(old[0]); document.getElementById(old[1])?.remove() }
+    const old = [...cache].find(([, e]) => !inUse.get(e.id))
+    if (old) {
+      cache.delete(old[0])
+      document.getElementById(old[1].id)?.remove()
+      if (old[1].url) URL.revokeObjectURL(old[1].url)
+    }
   }
-  return id
+  return entry.ready
 }
 
 // Points a panel at the lens for its own size (re-measured when it resizes). Call with the panel's ref.
-// The lens is costly to draw: Chrome re-runs it on every frame that anything in the panel moves. So it is
-// laid only while the panel is still. While the panel opens, scrolls, resizes or its bubble glides, the
-// plain frost (the same blur) stands in, and the bent rim comes back a moment after it all comes to rest.
-// The lens map is built at that moment too, never on the frame the panel opens.
+// The lens is costly to draw: Chrome re-runs it on every frame that anything in the panel, or behind it,
+// changes. So it is laid only while all is still: while the panel opens, scrolls or resizes, while the
+// page scrolls, or while anything on the page animates (a loading shimmer, figures rolling, a live
+// update), the plain frost (the same blur) stands in, and the bent rim comes back a moment after it all
+// comes to rest. Its map is made ready in idle time, never on the frame the panel opens.
 const SETTLE = 240 // ms of stillness before the lens is laid again
 export function useGlass(ref, on = true) {
   useLayoutEffect(() => {
@@ -96,29 +117,36 @@ export function useGlass(ref, on = true) {
     const lay = () => {
       timer = 0
       if (gone) return
-      // still moving (a transition or animation in the panel, its bubble included): wait for it
-      if (el.querySelector('[data-moving]') || el.getAnimations({ subtree: true }).some((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity)) return settle()
+      // still moving (anything animating in the panel or on the page behind it): wait for it
+      if (el.querySelector('[data-moving]') || busy()) return settle()
       const w = el.offsetWidth, h = el.offsetHeight // layout size, unaffected by the open animation's scale
       if (!w || !h) return
       const r = Math.round(Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, w / 2, h / 2))
-      const id = filterFor(w, h, r)
-      if (id !== cur) use(id)
-      el.style.setProperty('--glass-lens', `url(#${id})`)
+      filterFor(w, h, r).then((id) => {
+        // the map arrived: lay the lens only if the panel is still here, the same size and still at rest
+        if (gone || timer || el.offsetWidth !== w || el.offsetHeight !== h) return
+        if (id !== cur) use(id)
+        el.style.setProperty('--glass-lens', `url(#${id})`)
+      })
     }
+    // anything on the page still running, in the panel or behind it: a transition, an animation, or a
+    // loop (a loading shimmer, the calendar's trembling hold). The app's loops only run while something
+    // is loading or happening, so the lens comes back once it is over
+    const busy = () => document.getAnimations().some((a) => a.playState === 'running')
     const settle = () => { clearTimeout(timer); timer = setTimeout(lay, SETTLE) }
-    const moving = () => { el.style.removeProperty('--glass-lens'); settle() }
+    const moving = () => { if (el.style.getPropertyValue('--glass-lens')) el.style.removeProperty('--glass-lens'); settle() }
     settle()
     const ro = new ResizeObserver(moving)
     ro.observe(el)
-    // captured, so a scroll inside the list and its options' transitions count too; liquidmove is the
-    // hover drop setting off (Liquid.jsx), which moves by script, not by a transition
+    // listened for on the whole page, captured: anything starting to move, in the panel or behind it, a
+    // scroll anywhere; liquidmove is a script-driven mover (the calendar's pet) setting off
     const EVENTS = ['transitionrun', 'animationstart', 'scroll', 'liquidmove']
-    EVENTS.forEach((e) => el.addEventListener(e, moving, true))
+    EVENTS.forEach((e) => document.addEventListener(e, moving, true))
     return () => {
       gone = true
       clearTimeout(timer)
       ro.disconnect()
-      EVENTS.forEach((e) => el.removeEventListener(e, moving, true))
+      EVENTS.forEach((e) => document.removeEventListener(e, moving, true))
       el.style.removeProperty('--glass-lens')
       use(null)
     }
