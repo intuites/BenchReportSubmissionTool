@@ -33,14 +33,13 @@
 .l-lead { margin-top: 20px; max-width: 48ch; font-size: var(--t-lead); line-height: 1.5; color: var(--ink-2); text-wrap: pretty; }
 .l-label { font-size: 13px; font-weight: 500; color: var(--ink-2); }
 
-/* One link look: nav and footer words rest bare and draw a 1px line 4px under the word */
+/* One link look: nav and footer words rest bare and deepen to the ink on hover, never underlined */
 .l-navlink {
   display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 10px 0;
   color: var(--ink-2); font-weight: 500; text-decoration: none;
-  background: linear-gradient(currentColor, currentColor) no-repeat 100% calc(100% - 6px) / 0 1px;
-  transition: background-size var(--m-out) var(--m-ease), color var(--m-out) var(--m-ease);
+  transition: color var(--m-out) var(--m-ease);
 }
-.l-navlink:hover, .l-navlink:focus-visible { color: var(--ink); background-size: 100% 1px; background-position: 0 calc(100% - 6px); transition-duration: var(--m-in); }
+.l-navlink:hover, .l-navlink:focus-visible { color: var(--ink); transition-duration: var(--m-in); }
 
 /* ---------- Header: one fixed opaque bar, a hairline under it ---------- */
 .l-nav { position: fixed; inset: 0 0 auto; z-index: 30; height: var(--nav); background: var(--bg); border-bottom: 1px solid var(--line); }
