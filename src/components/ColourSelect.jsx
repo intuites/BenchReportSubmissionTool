@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
 import { floatStyle, useFloating, useGlass } from '../lib/glass'
 import { Liquid, useActiveRect } from './Liquid'
+import { accentTokens } from '../lib/color'
 
 const COLS = 4
 
@@ -93,7 +94,7 @@ export default function ColourSelect({ groups, value, onChange, label = 'Accent 
                           onMouseEnter={() => setActive(n)}
                           onClick={() => pick(o)}
                         >
-                          <span className="colour-swatch" style={{ '--c': o.c }} aria-hidden>{selected && <Check size={16} strokeWidth={2.5} />}</span>
+                          <span className="colour-swatch" style={{ '--c': o.c, color: accentTokens(o.c, false).on }} aria-hidden>{selected && <Check size={16} strokeWidth={2.5} />}</span>
                           <span className="colour-name">{o.name}</span>
                         </button>
                       )

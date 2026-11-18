@@ -20,5 +20,8 @@ for (const [name, c] of [...ALL_ACCENTS, ...extremes]) {
     assert.ok(contrast(hex(t.ink), hex(t.soft)) >= 4.5, `${at}: text ${t.ink} on soft ${t.soft}`)
   }
 }
+// every preset has its own name and its own colour
+assert.equal(new Set(ALL_ACCENTS.map(([n]) => n)).size, ALL_ACCENTS.length, 'duplicate colour name')
+assert.equal(new Set(ALL_ACCENTS.map(([, c]) => c.toLowerCase())).size, ALL_ACCENTS.length, 'duplicate colour code')
 assert.equal(accentTokens('#0f766e', false).accent, '#0f766e') // already readable: unchanged
 console.log('color tests passed')
