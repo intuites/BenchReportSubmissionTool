@@ -51,7 +51,7 @@ export function Liquid({ rect, tone = 'accent' }) {
 // over everything it passed. Stretched, it thins across and rounds off into a pill, and glows a
 // little with the flow; arriving, its soft edge overshoots and wobbles before it settles.
 const LEAD = [900, 0.85] // stiffness, damping ratio
-const TRAIL = [90, 0.74]
+const TRAIL = [72, 0.76]
 const EDGES = ['x1', 'x2', 'y1', 'y2']
 const reducedNow = () => document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches
 
