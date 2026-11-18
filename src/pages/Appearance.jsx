@@ -127,7 +127,7 @@ export default function Appearance({ admin }) {
         <aside className="preview-panel" aria-label="Preview">
           <div className="preview-head">
             <h2>Preview</h2>
-            <span className="muted small">{font.name} · {SIZE_LABELS[prefs.size]}</span>
+            <span className="muted small">{FONTS[prefs.fonts].name} · {SIZE_LABELS[prefs.size]}</span>
           </div>
           <p className="preview-title">Interviews this month</p>
           <div className="card figures">
