@@ -82,13 +82,22 @@ function filterFor(w, h, r) {
 }
 
 // Points a panel at the lens for its own size (re-measured when it resizes). Call with the panel's ref.
+// The lens is costly to draw: Chrome re-runs it on every frame that anything in the panel moves. So it is
+// laid only while the panel is still. While the panel opens, scrolls, resizes or its bubble glides, the
+// plain frost (the same blur) stands in, and the bent rim comes back a moment after it all comes to rest.
+// The lens map is built at that moment too, never on the frame the panel opens.
+const SETTLE = 240 // ms of stillness before the lens is laid again
 export function useGlass(ref, on = true) {
   useLayoutEffect(() => {
     const el = ref.current
     if (!chromium || !on || !el) return
-    let cur = null
+    let cur = null, timer = 0, gone = false
     const use = (id) => { if (cur) inUse.set(cur, inUse.get(cur) - 1); cur = id; if (id) inUse.set(id, (inUse.get(id) || 0) + 1) }
-    const apply = () => {
+    const lay = () => {
+      timer = 0
+      if (gone) return
+      // still moving (a transition or animation in the panel, its bubble included): wait for it
+      if (el.getAnimations({ subtree: true }).some((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity)) return settle()
       const w = el.offsetWidth, h = el.offsetHeight // layout size, unaffected by the open animation's scale
       if (!w || !h) return
       const r = Math.round(Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, w / 2, h / 2))
@@ -96,10 +105,22 @@ export function useGlass(ref, on = true) {
       if (id !== cur) use(id)
       el.style.setProperty('--glass-lens', `url(#${id})`)
     }
-    apply()
-    const ro = new ResizeObserver(apply)
+    const settle = () => { clearTimeout(timer); timer = setTimeout(lay, SETTLE) }
+    const moving = () => { el.style.removeProperty('--glass-lens'); settle() }
+    settle()
+    const ro = new ResizeObserver(moving)
     ro.observe(el)
-    return () => { ro.disconnect(); use(null) }
+    // captured, so a scroll inside the list and its options' transitions count too
+    const EVENTS = ['transitionrun', 'animationstart', 'scroll']
+    EVENTS.forEach((e) => el.addEventListener(e, moving, true))
+    return () => {
+      gone = true
+      clearTimeout(timer)
+      ro.disconnect()
+      EVENTS.forEach((e) => el.removeEventListener(e, moving, true))
+      el.style.removeProperty('--glass-lens')
+      use(null)
+    }
   }, [ref, on])
 }
 
