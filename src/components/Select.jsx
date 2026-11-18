@@ -109,7 +109,8 @@ export default function Select({ children, className = '', ...props }) {
           onKeyDown={onListKey}
           style={floatStyle(pos, { minWidth: pos?.width })}
         >
-          <div className="select-scroll" role="presentation" ref={scroll}>
+          {/* the pointer leaving the list sends the lens back to the chosen option */}
+          <div className="select-scroll" role="presentation" ref={scroll} onMouseLeave={() => setActive(Math.max(0, sel.current?.selectedIndex ?? 0))}>
           <Liquid rect={lens} tone="pick" />
           {options.map((o, i) => (
             <div

@@ -89,7 +89,8 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
   const titleId = useId()
   const body = useRef(null)
   const [hot, setHot] = useState(null) // the day under the mouse; the liquid lens follows it, else rests on the cursor
-  const lensOn = hot || cursor
+  const [away, setAway] = useState(false) // the mouse has left the days: the lens flows home to today (when it is in this month)
+  const lensOn = hot || (away && now.slice(0, 7) === cursor.slice(0, 7) ? now : cursor)
   const lens = useActiveRect(body, mode === 'days' ? lensOn : '')
   const pos = useFloating(true, () => onClose(false), anchor, panel, { align: 'start', gap: 6 })
   useGlass(panel, !!pos)
@@ -124,7 +125,7 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
       Home: () => addDays(cursor, -dow), End: () => addDays(cursor, 6 - dow),
       PageUp: () => addMonths(cursor, e.shiftKey ? -12 : -1), PageDown: () => addMonths(cursor, e.shiftKey ? 12 : 1),
     }[k]
-    if (to) { e.preventDefault(); setHot(null); go(to()) }
+    if (to) { e.preventDefault(); setHot(null); setAway(false); go(to()) }
     else if (k === 'Enter' || k === ' ') { e.preventDefault(); if (!off(cursor)) onPick(cursor) }
   }
   // months and years: arrows walk the buttons of the grid
@@ -170,7 +171,7 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
       </header>
 
       {mode === 'days' && (
-        <div className="cal-body" ref={body} onMouseLeave={() => setHot(null)}>
+        <div className="cal-body" ref={body} onMouseLeave={() => { setHot(null); setAway(true) }}>
         <Liquid rect={lens} tone="pick" />
         <table className="cal-grid" role="grid" aria-label={`${MONTHS[m - 1]} ${y}`} onKeyDown={onGridKey}>
           <thead>

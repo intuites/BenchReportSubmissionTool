@@ -1114,23 +1114,28 @@ td:last-child > .cal-day.in-range, .cal-day.range-end { border-top-right-radius:
 .select-scroll, .cal-body { position: relative; }
 .select-option, .menu-list--floating button, .profile-menu [role='menuitem'], .cal-day { position: relative; z-index: 1; }
 .lens--pick, .lens--bad {
-  --lq: cubic-bezier(0.34, 1.32, 0.5, 1);
-  --lead: 220ms; --trail: 380ms;
+  /* like a drop of water: the edge moving toward the pointer gets there almost at once, the edge behind
+     follows slowly and springs in. A quick sweep over four days stretches the drop over all four, and it
+     draws back onto the one you stop on */
+  --lq: cubic-bezier(0.55, 0, 0.25, 1.22); /* the trailing edge: holds back, then flows in and springs a touch past */
+  --lq-lead: cubic-bezier(0.2, 0.9, 0.3, 1);
+  --lead: 90ms; --trail: 500ms;
   --t-top: var(--lead); --t-bottom: var(--lead); --t-left: var(--lead); --t-right: var(--lead);
-  transition: top var(--t-top) var(--lq), bottom var(--t-bottom) var(--lq), left var(--t-left) var(--lq), right var(--t-right) var(--lq), background-color var(--m-slide) var(--m-ease);
+  --e-top: var(--lq-lead); --e-bottom: var(--lq-lead); --e-left: var(--lq-lead); --e-right: var(--lq-lead);
+  transition: top var(--t-top) var(--e-top), bottom var(--t-bottom) var(--e-bottom), left var(--t-left) var(--e-left), right var(--t-right) var(--e-right), background-color var(--m-slide) var(--m-ease);
   border-radius: var(--r-ctl);
   background: linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0) 70%), var(--accent-soft);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), inset 0 0 0 1px color-mix(in srgb, var(--accent-mark) 22%, transparent), 0 6px 14px -8px color-mix(in srgb, var(--accent-mark) 60%, transparent);
-  animation: lens-in 260ms var(--lq) both;
+  animation: lens-in 260ms cubic-bezier(0.34, 1.32, 0.5, 1) both;
   will-change: transform; /* its own layer: the bubble gliding redraws only itself, not the whole list under it */
 }
 .lens--bad { background: linear-gradient(180deg, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0) 70%), var(--bad-soft); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6), inset 0 0 0 1px color-mix(in srgb, var(--bad) 22%, transparent); }
 :root[data-theme='dark'] .lens--pick { background: linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0) 70%), var(--accent-soft); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), inset 0 0 0 1px color-mix(in srgb, var(--accent-mark) 35%, transparent), 0 8px 18px -10px color-mix(in srgb, var(--accent-mark) 70%, transparent); }
 :root[data-theme='dark'] .lens--bad { background: linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0) 70%), var(--bad-soft); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12); }
-.lens[data-y='down'] { --t-top: var(--trail); }
-.lens[data-y='up'] { --t-bottom: var(--trail); }
-.lens[data-x='right'] { --t-left: var(--trail); }
-.lens[data-x='left'] { --t-right: var(--trail); }
+.lens[data-y='down'] { --t-top: var(--trail); --e-top: var(--lq); }
+.lens[data-y='up'] { --t-bottom: var(--trail); --e-bottom: var(--lq); }
+.lens[data-x='right'] { --t-left: var(--trail); --e-left: var(--lq); }
+.lens[data-x='left'] { --t-right: var(--trail); --e-right: var(--lq); }
 @keyframes lens-in { from { opacity: 0; transform: scale(0.85, 0.6); } }
 /* the lens is the hover now: no second background under it */
 .select-option.active, .select-option:active,
