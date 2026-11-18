@@ -8,7 +8,6 @@ import DateField from '../components/DateField'
 import Select from '../components/Select'
 import { Count } from '../stageshow/kit/motion/Count'
 import { SkeletonLine, SkeletonRows } from '../components/Loading'
-import '../styles/dashboard-glass.css'
 
 const PERIODS = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']]
 const LAST = { day: 'the day before', week: 'last week', month: 'last month' }
@@ -89,7 +88,7 @@ export default function Dashboard({ admin }) {
   const label = period === 'day' ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`
 
   return (
-    <section className="page dash-glass">
+    <section className="page">
       <PageHead title="Dashboard" subtitle={label}>
         {admin && (
           <div className="field who-pick">
