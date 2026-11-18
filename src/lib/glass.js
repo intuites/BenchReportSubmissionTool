@@ -97,7 +97,7 @@ export function useGlass(ref, on = true) {
       timer = 0
       if (gone) return
       // still moving (a transition or animation in the panel, its bubble included): wait for it
-      if (el.getAnimations({ subtree: true }).some((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity)) return settle()
+      if (el.querySelector('[data-moving]') || el.getAnimations({ subtree: true }).some((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity)) return settle()
       const w = el.offsetWidth, h = el.offsetHeight // layout size, unaffected by the open animation's scale
       if (!w || !h) return
       const r = Math.round(Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, w / 2, h / 2))
@@ -110,8 +110,9 @@ export function useGlass(ref, on = true) {
     settle()
     const ro = new ResizeObserver(moving)
     ro.observe(el)
-    // captured, so a scroll inside the list and its options' transitions count too
-    const EVENTS = ['transitionrun', 'animationstart', 'scroll']
+    // captured, so a scroll inside the list and its options' transitions count too; liquidmove is the
+    // hover drop setting off (Liquid.jsx), which moves by script, not by a transition
+    const EVENTS = ['transitionrun', 'animationstart', 'scroll', 'liquidmove']
     EVENTS.forEach((e) => el.addEventListener(e, moving, true))
     return () => {
       gone = true
