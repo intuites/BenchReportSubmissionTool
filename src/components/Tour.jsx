@@ -1,18 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { TOURS, place } from '../lib/tours'
-import { useGlass } from '../lib/glass'
 import '../styles/tour.css'
 
 // The guided tour: <Tour role="admin" | "recruiter" open={bool} onClose={() => {}} />
 // A liquid lens (the spotlight) dims the page round each step's target and glides from one to the next,
-// its leading edges first; a glass card sits beside it.
+// its leading edges first; a liquid-glass card sits beside it and flows to its next size.
+// Everything that moves is cheap to draw (GPU blur, transforms, opacity): no software lens here.
 // Steps are data in src/lib/tours.js. The page underneath is inert while the tour runs.
 
 const PAD = 8 // spotlight round the target
 const WAIT = 3000 // how long a step waits for its target
 const RING = 2
 const GLIDE = 560 // ms the lens and card take between steps (tour.css)
+const MORPH = 420 // ms the card takes to reach its next height
+const reducedNow = () => document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const isVisible = (el) => {
   const r = el.getBoundingClientRect()
@@ -54,6 +56,8 @@ export default function Tour({ role, open, onClose }) {
   const placed = useRef(false)
   const pending = useRef(false) // a step is waiting for its page or target
   const lastBox = useRef(null)
+  const paneH = useRef(0) // the card's height at the last step, so the next one can grow or shrink from it
+  const cardH = useRef(0) // the card's settled height, used for placing it while its height is moving
   const start = useRef({ hash: '', opener: null })
 
   // Open and close: remember where the person was, make the page inert
@@ -101,7 +105,15 @@ export default function Tour({ role, open, onClose }) {
       if (el) {
         const r = el.getBoundingClientRect()
         const vh = document.documentElement.clientHeight
-        if (r.top < PAD + 16 || r.bottom > vh - PAD - 16) el.scrollIntoView({ block: r.height > vh * 0.6 ? 'start' : 'center', behavior: 'instant' })
+        if (r.top < PAD + 16 || r.bottom > vh - PAD - 16) {
+          // the page glides to the next target (the lens rides along), then the lens flows onto it
+          const reduced = reducedNow()
+          el.scrollIntoView({ block: r.height > vh * 0.6 ? 'start' : 'center', behavior: reduced ? 'instant' : 'smooth' })
+          if (!reduced) {
+            let y = NaN, still = 0
+            await until(() => { const t = el.getBoundingClientRect().top; still = Math.abs(t - y) < 0.5 ? still + 1 : 0; y = t; return still >= 3 }, 900, alive)
+          }
+        }
       }
       target.current = el
       pending.current = false
@@ -140,7 +152,10 @@ export default function Tour({ role, open, onClose }) {
       // the old page unmounted while the next step waits: hold the lens where it was, then glide
       if (pending.current) box = box || lastBox.current
       else lastBox.current = box
-      const size = { w: card.offsetWidth, h: card.offsetHeight }
+      // while the card's height flows to the next step, place it by where it will settle
+      const morphing = paneRef.current?.getAnimations().some((a) => a.id === 'tour-morph')
+      if (!morphing) cardH.current = card.offsetHeight
+      const size = { w: card.offsetWidth, h: cardH.current || card.offsetHeight }
       const key = [box ? [box.x, box.y, box.w, box.h].map(Math.round) : 'none', size.w, size.h, vw, vh].join()
       if (key === last) return
       last = key
@@ -166,18 +181,23 @@ export default function Tour({ role, open, onClose }) {
     return () => cancelAnimationFrame(raf)
   }, [open])
 
-  // Each new step, the glass gives a small liquid wobble as its words change
-  useGlass(paneRef, open && shown >= 0)
-  useEffect(() => {
-    const pane = paneRef.current
-    if (!open || shown < 0 || !pane || !placed.current || document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    pane.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.97, 0.955)', offset: 0.3 }, { transform: 'scale(1.012, 1.016)', offset: 0.62 }, { transform: 'scale(1)' }], { duration: GLIDE, easing: 'ease-out' })
+  // Each new step the glass flows to its new height (before paint, so it never snaps) and gives a small
+  // liquid wobble as its words change. Height on one small card and a transform: both cheap to draw.
+  useLayoutEffect(() => {
+    const pane = paneRef.current, card = cardRef.current
+    if (!open || shown < 0 || !pane || !card) return
+    const to = pane.offsetHeight, from = paneH.current
+    paneH.current = to
+    cardH.current = card.offsetHeight
+    if (!placed.current || !from || reducedNow()) return
+    if (Math.abs(from - to) > 1) pane.animate([{ height: `${from}px` }, { height: `${to}px` }], { id: 'tour-morph', duration: MORPH, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' })
+    pane.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.985, 0.975)', offset: 0.3 }, { transform: 'scale(1.006, 1.008)', offset: 0.62 }, { transform: 'scale(1)' }], { duration: GLIDE, easing: 'ease-out', composite: 'add' })
   }, [open, shown])
 
   const finish = () => {
     if (closing) return
     setClosing(true)
-    const reduced = document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches
+    const reduced = reducedNow()
     setTimeout(() => {
       const { hash } = start.current
       if (pageOf(location.hash) !== pageOf(hash)) location.hash = hash.replace(/^#/, '') || 'dashboard'
@@ -234,6 +254,7 @@ export default function Tour({ role, open, onClose }) {
         data-ready={step ? true : undefined}
       >
         <div className="glass tour-pane" ref={paneRef}>
+        <span className="tour-sheen" aria-hidden />
         {step && (
           <div className="tour-inner" key={shown}>
             <div className="tour-top">
