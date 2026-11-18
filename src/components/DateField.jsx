@@ -97,10 +97,12 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
   // drop hops from day to day. Not with Reduce motion on
   const [party, setParty] = useState(null)
   const [dance, setDance] = useState(null)
+  const [charge, setCharge] = useState(0) // from 4 s the drop trembles (1), faster from 5.5 s (2): something is coming
   useEffect(() => {
+    setCharge(0)
     if (!hot || party || document.documentElement.dataset.motion === 'reduced') return
-    const id = setTimeout(() => setParty(hot), 7000)
-    return () => clearTimeout(id)
+    const ids = [setTimeout(() => setCharge(1), 4000), setTimeout(() => setCharge(2), 5500), setTimeout(() => { setCharge(0); setParty(hot) }, 7000)]
+    return () => ids.forEach(clearTimeout)
   }, [hot, party])
   useEffect(() => {
     if (!party) return setDance(null)
@@ -196,7 +198,7 @@ function Calendar({ anchor, value, min, max, required, range, req, onPick, onClo
       </header>
 
       {mode === 'days' && (
-        <div className="cal-body" ref={body} onMouseLeave={() => { setHot(null); setAway(true) }}>
+        <div className="cal-body" ref={body} data-charge={charge || undefined} onMouseLeave={() => { setHot(null); setAway(true) }}>
         <Liquid rect={lens} tone="pick" />
         {party && <DropParty box={body} day={party} onDone={() => setParty(null)} />}
         <table className="cal-grid" role="grid" aria-label={`${MONTHS[m - 1]} ${y}`} onKeyDown={onGridKey}>

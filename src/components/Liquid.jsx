@@ -100,6 +100,9 @@ function Drop({ rect, tone }) {
         cur[k] += cur.v[k] * dt
         if (Math.abs(t[k] - cur[k]) > 0.25 || Math.abs(cur.v[k]) > 4) busy = true
       }
+      // moving fast, it sheds little droplets off its tail
+      const vx = (cur.v.x1 + cur.v.x2) / 2, vy = (cur.v.y1 + cur.v.y2) / 2
+      if (Math.hypot(vx, vy) > 480 && now - (cur.sprayed || 0) > 28) { cur.sprayed = now; spray(node, cur, vx, vy) }
       if (busy) {
         draw(node, cur, t, radius.current)
         raf.current = requestAnimationFrame(step)
@@ -119,6 +122,26 @@ function Drop({ rect, tone }) {
   return <span ref={el} className={`lens lens--${tone} drop`} aria-hidden />
 }
 
+// A droplet flung off the drop's tail: it flies back the way the drop came, falls and fades.
+// At most a dozen at a time; each removes itself
+function spray(node, s, vx, vy) {
+  const parent = node.parentElement
+  if (!parent || parent.querySelectorAll(':scope > .drop-spray').length > 12) return
+  const across = Math.abs(vx) > Math.abs(vy)
+  const x = across ? (vx > 0 ? s.x1 : s.x2) : s.x1 + (s.x2 - s.x1) * (0.25 + Math.random() * 0.5)
+  const y = across ? s.y1 + (s.y2 - s.y1) * (0.25 + Math.random() * 0.5) : (vy > 0 ? s.y1 : s.y2)
+  const d = document.createElement('i')
+  d.className = 'drop-spray'
+  d.setAttribute('aria-hidden', 'true')
+  const size = 3 + Math.random() * 4
+  const back = 10 + Math.random() * 18
+  Object.assign(d.style, { width: `${size}px`, height: `${size}px`, transform: `translate3d(${(x - size / 2).toFixed(1)}px, ${(y - size / 2).toFixed(1)}px, 0)` })
+  d.style.setProperty('--dx', `${(-Math.sign(vx) * back * (across ? 1 : 0.4) + (Math.random() - 0.5) * 10).toFixed(1)}px`)
+  d.style.setProperty('--dy', `${(-Math.sign(vy) * back * (across ? 0.3 : 1) + 8 + Math.random() * 10).toFixed(1)}px`)
+  parent.insertBefore(d, node)
+  d.addEventListener('animationend', () => d.remove(), { once: true })
+}
+
 // A ring of water spreading from where the drop lands
 function ripple(node) {
   if (reducedNow() || !node.parentElement) return
@@ -132,16 +155,17 @@ function ripple(node) {
 
 // Picking an item: the drop bursts. A flash, a ring and a spray of droplets over the item, drawn
 // above the page, so the panel closes at once and the burst plays on over where the item was.
-export function burst(el) {
+// A big burst (the party's finale) throws more droplets, further.
+export function burst(el, { beads: count = 10, reach = 1 } = {}) {
   if (!el || reducedNow()) return
   const r = el.getBoundingClientRect()
   const b = document.createElement('div')
   b.className = 'drop-burst'
   b.setAttribute('aria-hidden', 'true')
   Object.assign(b.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, borderRadius: getComputedStyle(el).borderRadius })
-  const beads = Array.from({ length: 10 }, (_, i) => {
-    const a = (i / 10) * Math.PI * 2 + (i % 2) * 0.25
-    const d = Math.max(r.width, r.height) / 2 + 10 + (i % 3) * 8
+  const beads = Array.from({ length: count }, (_, i) => {
+    const a = (i / count) * Math.PI * 2 + (i % 2) * 0.25
+    const d = (Math.max(r.width, r.height) / 2 + 10 + (i % 3) * 8) * reach
     return `<i class="bead" style="--dx:${(Math.cos(a) * d).toFixed(1)}px;--dy:${(Math.sin(a) * d).toFixed(1)}px;--s:${(0.7 + (i % 3) * 0.2).toFixed(2)}"></i>`
   }).join('')
   b.innerHTML = `<i class="flash"></i><i class="ring"></i>${beads}`
@@ -150,7 +174,7 @@ export function burst(el) {
 }
 
 // Writes the drop's shape: its box, thinned across the way it stretches (a drop keeps its volume),
-// rounder the more it stretches, and a glow that grows with the flow
+// rounder the more it stretches, and a glow (its own layer, styles.css) that fades up with the flow
 function draw(node, s, t, r0) {
   const w = Math.max(1, s.x2 - s.x1), h = Math.max(1, s.y2 - s.y1)
   const tw = Math.max(1, t.x2 - t.x1), th = Math.max(1, t.y2 - t.y1)
