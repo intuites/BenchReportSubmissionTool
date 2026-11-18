@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import Select from './Select'
 import DateField from './DateField'
+import { saveErrorMessage } from '../lib/dbError'
 
 // Field config:
 // { name, label, type: 'text'|'email'|'date'|'number'|'textarea'|'select'|'checkbox',
@@ -50,7 +51,7 @@ export default function RecordForm({ fields, initial = {}, onSubmit, onCancel, s
     try {
       await onSubmit(payload)
     } catch (err) {
-      setError(err.message)
+      setError(saveErrorMessage(err, fields, payload))
       setSaving(false)
     }
   }
