@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
 import { floatStyle, useFloating, useGlass } from '../lib/glass'
+import { Liquid, useActiveRect } from './Liquid'
 
 const COLS = 4
 
@@ -23,6 +24,9 @@ export default function ColourSelect({ groups, value, onChange, label = 'Accent 
   const all = useMemo(() => groups.flatMap(([family, items]) => items.map(([name, c]) => ({ name, c, family }))), [groups])
   const current = all.find((o) => o.c.toLowerCase() === value.toLowerCase()) ?? { name: 'Your earlier colour', c: value, family: 'Custom' }
   const shown = all.filter((o) => !q || `${o.name} ${o.family}`.toLowerCase().includes(q.trim().toLowerCase()))
+  // the liquid drop, as in the dropdowns: it follows the pointer and flows home to your colour when it leaves
+  const lens = useActiveRect(grid, open && pos ? `${active}|${q}` : '')
+  const home = () => { const n = shown.findIndex((o) => o.c === current.c); if (n >= 0) setActive(n) }
 
   useEffect(() => {
     if (!open) return
@@ -64,7 +68,8 @@ export default function ColourSelect({ groups, value, onChange, label = 'Accent 
             <span className="colour-count" aria-live="polite">{shown.length}<span className="sr-only"> colours</span></span>
             {q && <button type="button" className="colour-clear" aria-label="Clear search" onClick={() => { setQ(''); search.current?.focus() }}><X size={14} strokeWidth={2} /></button>}
           </label>
-          <div className="colour-groups" ref={grid} role="listbox" aria-label={label}>
+          <div className="colour-groups" ref={grid} role="listbox" aria-label={label} onMouseLeave={home}>
+            <Liquid rect={lens} tone="pick" />
             {groups.map(([family]) => {
               const items = shown.filter((o) => o.family === family)
               if (!items.length) return null
@@ -83,6 +88,7 @@ export default function ColourSelect({ groups, value, onChange, label = 'Accent 
                           role="option"
                           aria-selected={selected}
                           data-i={n}
+                          data-active={n === active}
                           className={`colour-tile ${n === active ? 'active' : ''}`}
                           onMouseEnter={() => setActive(n)}
                           onClick={() => pick(o)}
