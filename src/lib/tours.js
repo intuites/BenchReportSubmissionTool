@@ -60,7 +60,7 @@ export const TOURS = {
     {
       id: 'appearance',
       page: 'appearance',
-      target: ['.colour-trigger', '.font-grid'],
+      target: ['.palette', '.font-grid'],
       title: 'Make it yours',
       body: 'Everyone picks their own accent colour, typeface, theme and density here. Every colour is tested to read in light and dark.',
     },
@@ -137,7 +137,7 @@ export const TOURS = {
     {
       id: 'appearance',
       page: 'appearance',
-      target: ['.colour-trigger', '.font-grid'],
+      target: ['.palette', '.font-grid'],
       title: 'Make it yours',
       body: 'Pick your own accent colour, typeface, theme and density. Every colour is tested to read in light and dark.',
     },
