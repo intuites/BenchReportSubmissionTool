@@ -740,16 +740,34 @@ input[type='date']:hover::-webkit-calendar-picker-indicator, input[type='date']:
 .mode-card--system .mode-thumb i:nth-child(2) { background: linear-gradient(90deg, #111110 50%, #f2f2ef 50%); }
 .mode-label { display: inline-flex; align-items: center; gap: 6px; }
 
-/* accent: every colour on the page, a row of round swatches per family; nothing to open or scroll */
-.palette { display: flex; flex-direction: column; gap: 14px; }
-.palette-now { display: flex; align-items: center; gap: 10px; min-height: 28px; margin: 0; font-size: 15px; }
-.palette-now i { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px var(--swatch-line); }
-.palette-now b { font-weight: 500; }
-.palette-now small { color: var(--ink-3); font-size: 13px; }
-.palette-groups { display: flex; flex-direction: column; gap: 14px; }
+/* accent: a button shows the colour and expands the whole palette in place (no floating panel), a row of
+   round swatches per family; it collapses again by the same button or Escape */
+.palette { display: flex; flex-direction: column; }
+.palette-toggle {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 10px 14px 10px 10px;
+  border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--field); color: var(--ink); text-align: left; cursor: pointer;
+  transition: border-color var(--m-out) var(--m-ease), box-shadow var(--m-out) var(--m-ease), background-color var(--m-out) var(--m-ease);
+}
+.palette-toggle:hover { border-color: color-mix(in srgb, var(--ink) 30%, transparent); background: color-mix(in srgb, var(--field), var(--ink) 4%); transition-duration: var(--m-in); }
+.palette-toggle:hover .palette-more { color: var(--ink); }
+.palette-toggle[aria-expanded='true'] { border-color: var(--accent-mark); box-shadow: inset 0 0 0 1px var(--accent-mark); }
+.palette-chip { flex: none; width: 40px; height: 40px; border-radius: calc(var(--r-ctl) - 2px); background: var(--c); box-shadow: inset 0 0 0 1px var(--swatch-line); }
+.palette-name { display: flex; flex-direction: column; min-width: 0; }
+.palette-name b { font: 500 16px var(--font-body); }
+.palette-name small { color: var(--ink-3); font-size: 13px; }
+.palette-more { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--ink-2); font: 500 14px var(--font-body); white-space: nowrap; }
+.palette-more svg { transition: transform var(--m-slide) var(--m-ease-io); }
+.palette-toggle[aria-expanded='true'] .palette-more svg { transform: rotate(180deg); }
+/* expand and collapse: the rows animate their height (0fr to 1fr); once collapsed the swatches leave the tab order */
+.palette-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 260ms var(--m-ease-io); }
+.palette-body.open { grid-template-rows: 1fr; }
+.palette-inner { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear 260ms; }
+.palette-body.open .palette-inner { visibility: visible; transition-delay: 0s; }
+/* padding inside the clip, so a swatch growing on hover or its ring is never cut */
+.palette-groups { display: flex; flex-direction: column; gap: 14px; padding: 18px 6px 6px; }
 .palette-row { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .palette-family { color: var(--ink-3); font-size: 13px; }
-.palette-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.palette-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
 .swatch {
   display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
   background: var(--c); cursor: pointer; box-shadow: inset 0 0 0 1px var(--swatch-line);
