@@ -22,7 +22,7 @@ export default function ColourSelect({ groups, value, onChange, label = 'Accent 
   const pos = useFloating(open, () => setOpen(false), box, pop, { align: 'start', gap: 8, cap: 440 })
   useGlass(pop, open && !!pos)
 
-  const all = useMemo(() => groups.flatMap(([family, items]) => items.map(([name, c]) => ({ name, c, family }))), [groups])
+  const all = useMemo(() => groups.flatMap(([family, items]) => items.map(([name, c]) => ({ name, c, family, on: accentTokens(c, false).on }))), [groups])
   const current = all.find((o) => o.c.toLowerCase() === value.toLowerCase()) ?? { name: 'Your earlier colour', c: value, family: 'Custom' }
   const shown = all.filter((o) => !q || `${o.name} ${o.family}`.toLowerCase().includes(q.trim().toLowerCase()))
   // the highlight, as in the dropdowns: it follows the pointer and goes back to your colour when it leaves
@@ -94,7 +94,7 @@ export default function ColourSelect({ groups, value, onChange, label = 'Accent 
                           onMouseEnter={() => setActive(n)}
                           onClick={() => pick(o)}
                         >
-                          <span className="colour-swatch" style={{ '--c': o.c, color: accentTokens(o.c, false).on }} aria-hidden>{selected && <Check size={16} strokeWidth={2.5} />}</span>
+                          <span className="colour-swatch" style={{ '--c': o.c, color: o.on }} aria-hidden>{selected && <Check size={16} strokeWidth={2.5} />}</span>
                           <span className="colour-name">{o.name}</span>
                         </button>
                       )
